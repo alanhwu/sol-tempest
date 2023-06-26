@@ -1,25 +1,38 @@
 import express from 'express';
-import { Server as WebSocketServer } from 'ws';
+import WebSocket, { Server as WebSocketServer } from 'ws';
 import http from 'http';
-import { fetchLatestBlockData } from './solana';
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
-
 const PORT = process.env.PORT || 3000;
-
-// Use the public directory to serve static files
 app.use(express.static('public'));
 
-wss.on('connection', async (ws) => {
+//ws to solana
+const solanaWs = new WebSocket('wss://api.mainnet-beta.solana.com');
+
+// Send the subscription message once connected
+solanaWs.on('open', () => {
+    solanaWs.send(JSON.stringify({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "slotSubscribe"
+    }));
+});
+
+// Handle incoming notifications
+solanaWs.on('message', (data: WebSocket.Data) => {
+    console.log('Received data from Solana:', data);
+    //forward to frontend
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(data);
+        }
+    });
+});
+
+wss.on('connection', (ws) => {
     console.log('Client connected');
-    
-    // Fetch the latest block data
-    const blockData = await fetchLatestBlockData();
-    
-    // Send block data to the client
-    ws.send(JSON.stringify(blockData));
 });
 
 server.listen(PORT, () => {
