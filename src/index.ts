@@ -4,6 +4,10 @@ import http from 'http';
 import { fetchBlockData } from './solana';
 import { BlockResponse } from '@solana/web3.js';
 
+import { addressLabel } from './tx';
+import { Cluster } from './utils/cluster'; // Update with the correct path if these are custom types
+import { TokenInfoMap } from '@solana/spl-token-registry';
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -61,37 +65,14 @@ const resolvePromises = async () => {
                 console.log('block:', fetchedBlock);
                 
                 // get a map of program addresses to compute units
-                const computeUnitMap = await processBlock(fetchedBlock);
+                const payload = await processBlock(fetchedBlock);
                 
-                if (computeUnitMap) {
-                    // convert the map into an array of objects
-                    const computeUnitsArray = Array.from(computeUnitMap).map(([programAddress, computeUnits]) => ({
-                        programAddress,
-                        computeUnits
-                    }));
-                    
-                    // Aggregating computeUnits from meta
-                    let totalComputeUnitsMeta = 0;
-                    for (const transaction of fetchedBlock.transactions) {
-                        if (transaction.meta && transaction.meta.computeUnitsConsumed) {
-                            totalComputeUnitsMeta += transaction.meta.computeUnitsConsumed;
-                        }
+                // send the JSON string to the frontend
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(payload);
                     }
-
-                    // create a payload with additional block information
-                    const payload = JSON.stringify({
-                        slot: fetchedBlock.parentSlot + 1, // you might want to use a different property for the slot/block number
-                        computeUnitsMeta: totalComputeUnitsMeta,
-                        programsComputeUnits: computeUnitsArray
-                    });
-                    
-                    // send the JSON string to the frontend
-                    wss.clients.forEach(client => {
-                        if (client.readyState === WebSocket.OPEN) {
-                            client.send(payload);
-                        }
-                    });
-                }
+                });
                 
             } catch (error) {
                 console.error('Error fetching block data:', error);
@@ -151,16 +132,40 @@ async function processBlock(block: BlockResponse) {
                     if (match) {
                         const programAddress = match[1];
                         const computeUnitsConsumed = parseInt(match[2], 10);
-                        
-                        //if program address already exists in the map, add the compute units, otherwise set it
                         const currentComputeUnits = computeUnitMap.get(programAddress) || 0;
+
                         computeUnitMap.set(programAddress, currentComputeUnits + computeUnitsConsumed);
                     }
                 }
             }
         }
     }
+
+    let payload = null;
+    if (computeUnitMap.size > 0) {
+        // convert the map into an array of objects
+        const computeUnitsArray = Array.from(computeUnitMap).map(([programAddress, computeUnits]) => ({
+            programAddress,
+            programLabel: addressLabel(programAddress, Cluster.MainnetBeta) || programAddress,
+            computeUnits
+        }));
+        
+        // Aggregating computeUnits from meta
+        let totalComputeUnitsMeta = 0;
+        for (const transaction of block.transactions) {
+            if (transaction.meta && transaction.meta.computeUnitsConsumed) {
+                totalComputeUnitsMeta += transaction.meta.computeUnitsConsumed;
+            }
+        }
+
+        // create a payload with additional block information
+        payload = JSON.stringify({
+            slot: block.parentSlot + 1, // you might want to use a different property for the slot/block number
+            computeUnitsMeta: totalComputeUnitsMeta,
+            programsComputeUnits: computeUnitsArray
+        });
+    }
     
-    return computeUnitMap;
+    return payload;
     
 }
