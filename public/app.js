@@ -1,22 +1,20 @@
 const websocket = new WebSocket('ws://localhost:3000');
 
 websocket.onmessage = async (event) => {
-
-    const data = await readBlobData(event.data);
-    console.log('Data received from server:', data);
+    console.log('Data received from server:', event.data);
+    
+    // Parse the received data if it's a JSON string
+    let parsedData;
+    try {
+        parsedData = JSON.parse(event.data);
+    } catch (error) {
+        parsedData = event.data; // In case it's not a JSON string
+    }
 
     // Display the block data in the HTML
     const blockInfoContainer = document.getElementById('block-info');
-    blockInfoContainer.textContent = JSON.stringify(data, null, 2);
+    
+    // Use JSON.stringify to format it nicely if it's an object, otherwise just show the data
+    blockInfoContainer.textContent = typeof parsedData === 'object' ?
+        JSON.stringify(parsedData, null, 2) : parsedData;
 };
-
-async function readBlobData(blob) {
-    try {
-      const text = await blob.text(); // Read the Blob as text
-      const jsonData = JSON.parse(text); // Parse the text as JSON
-      //console.log(jsonData);
-      return jsonData;
-    } catch (error) {
-      console.error('Error reading Blob data:', error);
-    }
-  }
