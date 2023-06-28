@@ -2,7 +2,7 @@ import express from 'express';
 import WebSocket, { Server as WebSocketServer } from 'ws';
 import http from 'http';
 import { fetchBlockData } from './solana';
-import { BlockResponse } from '@solana/web3.js';
+import { BlockResponse, PublicKey, Transaction } from '@solana/web3.js';
 
 import { addressLabel } from './tx';
 import { Cluster } from './utils/cluster'; // Update with the correct path if these are custom types
@@ -83,9 +83,6 @@ const resolvePromises = async () => {
 };
 resolvePromises();
 
-
-
-
 wss.on('connection', (ws) => {
     console.log('Client connected');
 });
@@ -105,7 +102,7 @@ async function readBuffer(buffer: any) {
 }
 
 async function processBlock(block: BlockResponse) {
-    if (block.transactions.length === 0) {
+    if (block.transactions && block.transactions.length === 0) {
         return null;
     }
 
@@ -115,7 +112,6 @@ async function processBlock(block: BlockResponse) {
         && transaction.meta.computeUnitsConsumed 
         && transaction.meta.computeUnitsConsumed > 0;
     });
-
 
     let computeUnitMap: Map<string, number> = new Map<string, number>();
 
@@ -141,15 +137,18 @@ async function processBlock(block: BlockResponse) {
         }
     }
 
-    let payload = null;
+    let payload : any = null;
     if (computeUnitMap.size > 0) {
         // convert the map into an array of objects
-        const computeUnitsArray = Array.from(computeUnitMap).map(([programAddress, computeUnits]) => ({
-            programAddress,
-            programLabel: addressLabel(programAddress, Cluster.MainnetBeta) || programAddress,
-            computeUnits
-        }));
-        
+        const computeUnitsArray = Array.from(computeUnitMap).map(async ([programAddress, computeUnits]) => {
+            return {
+                programAddress,
+                programLabel: addressLabel(programAddress, Cluster.MainnetBeta) || programAddress,
+                computeUnits,
+                associatedAddresses: await findAssociatedAddresses(programAddress, relevantTransactions)
+            };
+        });
+        const resolvedComputeUnitsArray = await Promise.all(computeUnitsArray);
         // Aggregating computeUnits from meta
         let totalComputeUnitsMeta = 0;
         for (const transaction of block.transactions) {
@@ -162,10 +161,33 @@ async function processBlock(block: BlockResponse) {
         payload = JSON.stringify({
             slot: block.parentSlot + 1, // you might want to use a different property for the slot/block number
             computeUnitsMeta: totalComputeUnitsMeta,
-            programsComputeUnits: computeUnitsArray
+            programsComputeUnits: resolvedComputeUnitsArray
         });
     }
-    
     return payload;
-    
+}
+
+
+async function findAssociatedAddresses(programAddress : string, targetTransactions : any){
+    let associatedAddresses : any = [];
+
+    targetTransactions && targetTransactions.forEach((txn: { transaction: { message: any; }; })=> {
+        const {message} = txn.transaction;
+        if (message && message.instructions){
+            message.instructions.forEach((instruction: { programIdIndex: string | number; accounts: any[]; }) => {
+                // Check if the programIdIndex in the instruction matches
+                // the index of the programAddress in accountKeys
+                const programId = message.accountKeys[instruction.programIdIndex];
+                if (programId && programId.toString() === programAddress) {
+                    // Map the indices in instruction.accounts to actual addresses
+                    // and add them to associatedAddresses array
+                    const addresses = instruction.accounts.map(index => message.accountKeys[index].toString());
+                    associatedAddresses = associatedAddresses.concat(addresses);
+                }
+            });
+        }
+    });
+
+    // Remove dupes
+    return Array.from(new Set(associatedAddresses));
 }
