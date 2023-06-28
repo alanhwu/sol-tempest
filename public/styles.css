@@ -7,7 +7,7 @@
 body {
     font-family: Arial, sans-serif;
     line-height: 1.6;
-    background-color: #f4f4f4;
+    background-color: black; /* change background-color to black */
     color: #333;
     padding: 20px;
 }
@@ -16,12 +16,13 @@ body {
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    background: #fff;
+    background: #111111; /* change container background to very dark gray */
     padding: 20px;
+    color: #ddd; /* change font color to light gray */
 }
 
 h1 {
-    color: #444;
+    color: #aaa; /* change heading color to light gray */
     margin-bottom: 20px;
 }
 
@@ -45,4 +46,9 @@ p {
     border: 0px;
     border-radius: 8px;
     pointer-events: none;
+}
+
+/* Add this to style the SVG background */
+#visualization {
+    background-color: #111111; /* very dark gray */
 }
