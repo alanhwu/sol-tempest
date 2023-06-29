@@ -1,93 +1,62 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-async function sha256(input) {
+async function computeSha256(input) {
     const buffer = new TextEncoder().encode(input);
     const digest = await crypto.subtle.digest('SHA-256', buffer);
-    return Array.from(new Uint8Array(digest)).map(n => n.toString(16).padStart(2, '0')).join('');
+    return Array.from(new Uint8Array(digest))
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('');
 }
 
-function hashToNumber(hash, min, max) {
+function scaleHashToNumber(hash, min, max) {
     const hashInt = parseInt(hash.slice(0, 8), 16);
     return ((hashInt / 0xffffffff) * (max - min)) + min;
 }
 
-export async function draw(data) {
-    const svg = d3.select("#visualization");
+function computeColorFromHashAndUnits(hash, computeUnits, lightnessScale, hueScale) {
+    const mixedHashPart = hash.slice(4, 8) + hash.slice(16, 20);
+    const hue = hueScale(parseInt(mixedHashPart, 16));
+    const lightness = lightnessScale(computeUnits);
+    return `hsl(${hue}, 100%, ${lightness}%)`;
+}
 
-    svg.selectAll("*").remove(); // Clear SVG
-
-    // Extract program data from the block data
-    const programs = data.programsComputeUnits || [];
-
-    // Define linear scale for dot colors
-    // const colorScale = d3.scaleLinear()
-    //     .domain([0, d3.max(programs, d => d.computeUnits)])
-    //     .range(["#d9d9d9", "#1f78b4"]);
-
-    // Define linear scale for lightness based on compute units
-    const lightnessScale = d3.scaleLinear()
-    .domain([0, d3.max(programs, d => d.computeUnits)])
-    .range([80, 40]);
-
-    // Define linear scale for hue based on hash
-    const hueScale = d3.scaleLinear()
-        .domain([0, 0xffffffff])
-        .range([270, 150]); // Hue range mapping to purple-green
-
-    // Create tooltips
-    const tooltip = d3.select("body").append("div")
+function createTooltip() {
+    return d3.select("body").append("div")
         .attr("class", "tooltip")
         .style("opacity", 0);
+}
 
-    // Define zone radius and associated address circle radius
-    const zoneRadius = 40;
-    const associatedAddressRadius = 2;
+function showTooltip(tooltip, event, content) {
+    tooltip.transition()
+        .duration(200)
+        .style("opacity", .9);
+    tooltip.html(content)
+        .style("left", (event.pageX) + "px")
+        .style("top", (event.pageY - 28) + "px");
+}
 
-    // Define offsets to ensure program nodes and associated addresses stay within SVG
-    const xOffset = zoneRadius + associatedAddressRadius;
-    const yOffset = zoneRadius + associatedAddressRadius;
+function hideTooltip(tooltip) {
+    tooltip.transition()
+        .duration(500)
+        .style("opacity", 0);
+}
 
-    const linesGroup = svg.append("g");
+function createScales(programs) {
+    const lightnessScale = d3.scaleLinear()
+        .domain([0, d3.max(programs, d => d.computeUnits)])
+        .range([80, 40]);
 
-    // Draw dots
-    for (const program of programs) {
-        const hash = await sha256(program.programAddress);
-        const cx = hashToNumber(hash, xOffset, 800 - xOffset); // assuming svg width is 800
-        const cy = hashToNumber(hash.slice(8), yOffset, 600 - yOffset); // assuming svg height is 600
-        
-        const mixedHashPart = hash.slice(4, 8) + hash.slice(16, 20);
-        const hue = hueScale(parseInt(mixedHashPart, 16)); //mixing hash to make more entropy
-        const lightness = lightnessScale(program.computeUnits);
+    const hueScale = d3.scaleLinear()
+        .domain([0, 0xffffffff])
+        .range([270, 150]);
 
-        const circle = svg.append("circle")
-            .attr("cx", cx)
-            .attr("cy", cy)
-            .attr("r", 6) // Slightly larger program address sizes
-            .attr("fill", `hsl(${hue}, 100%, ${lightness}%)`)
-            .on("mouseover", event => {
-                tooltip.transition()
-                    .duration(200)
-                    .style("opacity", .9);
-                tooltip.html(program.programLabel + "<br/>" + program.computeUnits)
-                    .style("left", (event.pageX) + "px")
-                    .style("top", (event.pageY - 28) + "px");
-            })
-            .on("mouseout", event => {
-                tooltip.transition()
-                    .duration(500)
-                    .style("opacity", 0);
-            });
+    return { lightnessScale, hueScale };
+}
 
-            drawAssociatedAddresses(linesGroup, circle, program.associatedAddresses, svg, tooltip, zoneRadius);
-
-
-    }
-
-    // Case where dot disappears but tooltip remains
+function addMutationObserver(svg, tooltip) {
     const observer = new MutationObserver(mutations => {
         for (const mutation of mutations) {
             if (mutation.type === 'childList') {
-                // Check if any circle or line still exists within SVG
                 const circleExists = svg.select("circle").node();
                 const lineExists = svg.select("line").node();
                 if (!circleExists && !lineExists) {
@@ -100,45 +69,68 @@ export async function draw(data) {
     observer.observe(svg.node(), { childList: true });
 }
 
+function drawProgramCircle(svg, cx, cy, fill, content, tooltip) {
+    return svg.append("circle")
+        .attr("cx", cx)
+        .attr("cy", cy)
+        .attr("r", 6)
+        .attr("fill", fill)
+        .on("mouseover", event => showTooltip(tooltip, event, content))
+        .on("mouseout", () => hideTooltip(tooltip));
+}
+
+function drawLine(linesGroup, x1, y1, x2, y2) {
+    linesGroup.append("line")
+        .attr("x1", x1)
+        .attr("y1", y1)
+        .attr("x2", x2)
+        .attr("y2", y2)
+        .attr("stroke", "grey")
+        .attr("stroke-width", 0.5);
+}
+
+export async function draw(data) {
+    const svg = d3.select("#visualization");
+    svg.selectAll("*").remove(); // Clear SVG
+
+    const programs = data.programsComputeUnits || [];
+    const { lightnessScale, hueScale } = createScales(programs);
+
+    const tooltip = createTooltip();
+    const linesGroup = svg.append("g");
+    const zoneRadius = 40;
+    const xOffset = zoneRadius + 2;
+    const yOffset = zoneRadius + 2;
+
+    for (const program of programs) {
+        const hash = await computeSha256(program.programAddress);
+        const cx = scaleHashToNumber(hash, xOffset, 800 - xOffset);
+        const cy = scaleHashToNumber(hash.slice(8), yOffset, 600 - yOffset);
+        const fill = computeColorFromHashAndUnits(hash, program.computeUnits, lightnessScale, hueScale);
+        const content = program.programLabel + "<br/>" + program.computeUnits;
+
+        const programCircle = drawProgramCircle(svg, cx, cy, fill, content, tooltip);
+
+        await drawAssociatedAddresses(linesGroup, programCircle, program.associatedAddresses, svg, tooltip, zoneRadius);
+    }
+
+    addMutationObserver(svg, tooltip);
+}
+
 async function drawAssociatedAddresses(linesGroup, programCircle, associatedAddresses, svg, tooltip, zoneRadius) {
     const programCx = +programCircle.attr("cx");
     const programCy = +programCircle.attr("cy");
 
     for (const address of associatedAddresses) {
-        const hash = await sha256(address);
-        const angle = hashToNumber(hash, 0, 2 * Math.PI);
-        const radius = hashToNumber(hash.slice(8), 10, zoneRadius); // Increased minimum radius
+        const hash = await computeSha256(address);
+        const angle = scaleHashToNumber(hash, 0, 2 * Math.PI);
+        const radius = scaleHashToNumber(hash.slice(8), 10, zoneRadius);
 
         const cx = programCx + radius * Math.cos(angle);
         const cy = programCy + radius * Math.sin(angle);
 
-        // draw a line from the program to the associated address
-        linesGroup.append("line")
-            .attr("x1", programCx)
-            .attr("y1", programCy)
-            .attr("x2", cx)
-            .attr("y2", cy)
-            .attr("stroke", "grey")
-            .attr("stroke-width", 0.5); // Thinner lines
+        drawLine(linesGroup, programCx, programCy, cx, cy);
 
-        // draw a small dot for the associated address
-        svg.append("circle")
-            .attr("cx", cx)
-            .attr("cy", cy)
-            .attr("r", 2)
-            .attr("fill", "#999999") // Neutral gray color for associated addresses
-            .on("mouseover", event => {
-                tooltip.transition()
-                    .duration(200)
-                    .style("opacity", .9);
-                tooltip.html(address)
-                    .style("left", (event.pageX) + "px")
-                    .style("top", (event.pageY - 28) + "px");
-            })
-            .on("mouseout", event => {
-                tooltip.transition()
-                    .duration(500)
-                    .style("opacity", 0);
-            });
+        drawProgramCircle(svg, cx, cy, "#999999", address, tooltip).attr("r", 2);
     }
 }
