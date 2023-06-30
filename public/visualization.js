@@ -1,13 +1,6 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import { computeSha256, scaleHashToNumber, pruneStrayTooltips, 
-    createTooltip, hideTooltip } from "./utils.js";
-
-function computeColorFromHashAndUnits(hash, computeUnits, lightnessScale, hueScale, alpha = 1) {
-    const mixedHashPart = hash.slice(4, 8) + hash.slice(16, 20);
-    const hue = hueScale(parseInt(mixedHashPart, 16));
-    const lightness = lightnessScale(computeUnits);
-    return `hsla(${hue}, 100%, ${lightness}%, ${alpha})`;
-}
+    createTooltip, hideTooltip } from "./utils.js";    
 
 function showTooltip(tooltip, event, content) {
     tooltip.transition()
@@ -21,7 +14,7 @@ function showTooltip(tooltip, event, content) {
 function createScales(programs) {
     const lightnessScale = d3.scaleLinear()
         .domain([0, d3.max(programs, d => d.computeUnits)])
-        .range([20, 80]);
+        .range([30, 60]);
 
     const hueScale = d3.scaleLinear()
         .domain([0, 0xffffffff])
@@ -31,13 +24,25 @@ function createScales(programs) {
 }
 
 function drawCircle(svg, cx, cy, radius, fill, content, tooltip) {
-    return svg.append("circle")
+    const circle = svg.append("circle")
         .attr("cx", cx)
         .attr("cy", cy)
         .attr("r", radius)
         .attr("fill", fill)
         .on("mouseover", event => showTooltip(tooltip, event, content))
         .on("mouseout", () => hideTooltip(tooltip));
+
+    // Pulse animation to indicate the circle was in the most recent block
+    circle.transition()
+        .duration(600)
+        .ease(d3.easeElastic)
+        .attr("r", radius * 1.3)
+        .transition()
+        .duration(600)
+        .ease(d3.easeElastic)
+        .attr("r", radius);
+
+    return circle;
 }
 
 function drawLine(linesGroup, x1, y1, x2, y2, opacity) {
@@ -52,7 +57,7 @@ function drawLine(linesGroup, x1, y1, x2, y2, opacity) {
 }
 
 class ProgramNode {
-    constructor(program, hash, lightnessScale, hueScale) {
+    constructor(program, hash, lightnessScale, hueScale, opacityScale, totalComputeUnits) {
         this.computeUnits = program.computeUnits;
         this.addressLabel = program.programLabel;
         this.associatedAddresses = program.associatedAddresses.map(addr => new AssociatedAccount(addr));
@@ -60,6 +65,14 @@ class ProgramNode {
         this.fadedness = 0;
         this.lightnessScale = lightnessScale;
         this.hueScale = hueScale;
+
+        this.hue = this.calculateHue(this.hash);
+        this.lightness = lightnessScale(this.computeUnits);
+
+        // Opacity scale
+        this.opacityScale = opacityScale;
+        this.totalComputeUnits = totalComputeUnits;
+
     }
 
     get position() {
@@ -72,11 +85,17 @@ class ProgramNode {
     }
 
     get fill() {
-        return computeColorFromHashAndUnits(this.hash, this.computeUnits, this.lightnessScale, this.hueScale, 1 - this.fadedness);
+        return `hsla(${this.hue}, 100%, ${this.lightness}%, ${1 - this.fadedness})`;
     }
 
     get tooltipContent() {
-        return this.addressLabel + "<br/>Compute Units: " + this.computeUnits;
+        const percentage = ((this.computeUnits / this.totalComputeUnits) * 100).toFixed(2);
+        return `${this.addressLabel}<br/>Compute Units: ${this.computeUnits} (${percentage}%)`;
+    }
+
+    calculateHue(hash) {
+        const mixedHashPart = hash.slice(4, 8) + hash.slice(16, 20);
+        return this.hueScale(parseInt(mixedHashPart, 16));
     }
 
     fade() {
@@ -94,7 +113,50 @@ class ProgramNode {
             .filter(addr => program.associatedAddresses.includes(addr.address))
             .forEach(addr => addr.resetFadedness());
     }
-        
+
+    updateComputeUnits(newComputeUnits) {
+        this.computeUnits = newComputeUnits;
+    }
+
+    drawBackgroundShape(svg) {
+        const gradientId = `gradient-${Math.random().toString(36).substring(2)}`;
+    
+        // Define a radial gradient
+        const radialGradient = svg.append("defs")
+            .append("radialGradient")
+            .attr("id", gradientId)
+            .attr("cx", "50%")
+            .attr("cy", "50%")
+            .attr("r", "50%")
+            .attr("fx", "50%")
+            .attr("fy", "50%");
+    
+        // Define the gradient stops
+        const opacity = this.opacityScale(this.computeUnits);
+        radialGradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", this.fill)
+            .attr("stop-opacity", opacity);
+        radialGradient.append("stop")
+            .attr("offset", "25%")
+            .attr("stop-color", this.fill)
+            .attr("stop-opacity", opacity * 0.8); // Multiply opacity by a factor to create a steeper drop-off
+        radialGradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", this.fill)
+            .attr("stop-opacity", "0");
+    
+        // Draw the background circle with the radial gradient
+        const size = 200; // Set a constant size for the circles
+        svg.insert("circle", ":first-child")
+            .attr("cx", this.position.x)
+            .attr("cy", this.position.y)
+            .attr("r", size)
+            .attr("fill", `url(#${gradientId})`);
+    }
+    
+    
+
 }
 
 class AssociatedAccount {
@@ -129,8 +191,15 @@ export async function draw(data) {
     const { lightnessScale, hueScale } = createScales(programs);
     const tooltip = createTooltip();
     const linesGroup = svg.append("g");
-    const zoneRadius = 40;
+    const zoneRadius = 50;
     const maxFadedness = 3;
+
+
+    // Create opacity scale with exponent
+    const opacityScale = d3.scalePow().exponent(1.58)
+        .domain([0, d3.max(programs, d => d.computeUnits)])
+        .range([0.01, 0.825])
+        .clamp(true);
 
     // Fade all nodes
     Object.values(state).forEach(node => node.fade());
@@ -143,6 +212,8 @@ export async function draw(data) {
         }
     });
 
+
+    const totalComputeUnits = data.computeUnitsMeta;
     // Add new nodes if it's not already in the state
     for (const program of programs) {
         const address = program.programAddress;
@@ -151,9 +222,11 @@ export async function draw(data) {
         if (address in state) {
             // Reset fadedness if node already exists in state
             state[address].resetFadedness(program);
+            // Update compute units
+            state[address].updateComputeUnits(program.computeUnits);
         } else {
             // Add new node to state
-            state[address] = new ProgramNode(program, hash, lightnessScale, hueScale);
+            state[address] = new ProgramNode(program, hash, lightnessScale, hueScale, opacityScale, totalComputeUnits);
         }
     }
 
@@ -161,6 +234,8 @@ export async function draw(data) {
     for (let address in state) {
         const node = state[address];
         const { x, y } = node.position;
+
+        node.drawBackgroundShape(svg);
 
         for (const associatedAccount of node.associatedAddresses) {
             if (associatedAccount.fadedness < maxFadedness) {
