@@ -23,7 +23,7 @@ function createScales(programs) {
     return { lightnessScale, hueScale };
 }
 
-function drawCircle(svg, cx, cy, radius, fill, content, tooltip) {
+function drawProgram(svg, cx, cy, radius, fill, content, tooltip) {
     const circle = svg.append("circle")
         .attr("cx", cx)
         .attr("cy", cy)
@@ -31,6 +31,28 @@ function drawCircle(svg, cx, cy, radius, fill, content, tooltip) {
         .attr("fill", fill)
         .on("mouseover", event => showTooltip(tooltip, event, content))
         .on("mouseout", () => hideTooltip(tooltip));
+
+    // Pulse animation to indicate the circle was in the most recent block
+    circle.transition()
+        .duration(600)
+        .ease(d3.easeElastic)
+        .attr("r", radius * 1.3)
+        .transition()
+        .duration(600)
+        .ease(d3.easeElastic)
+        .attr("r", radius);
+
+    return circle;
+}
+
+function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
+    const circle = svg.append("circle")
+    .attr("cx", cx)
+    .attr("cy", cy)
+    .attr("r", radius)
+    .attr("fill", fill)
+    .on("mouseover", event => showTooltip(tooltip, event, content))
+    .on("mouseout", () => hideTooltip(tooltip));
 
     // Pulse animation to indicate the circle was in the most recent block
     circle.transition()
@@ -244,7 +266,7 @@ export async function draw(data) {
         }
 
         // Draw program circle
-       drawCircle(svg, x, y, 6, node.fill, node.tooltipContent, tooltip);
+       drawProgram(svg, x, y, 6, node.fill, node.tooltipContent, tooltip);
 
     }
     pruneStrayTooltips(svg, tooltip);
@@ -261,6 +283,6 @@ async function drawAssociatedAddresses(linesGroup, programCx, programCy, associa
     const cy = programCy + radius * Math.sin(angle);
 
     drawLine(linesGroup, programCx, programCy, cx, cy, associatedAccount.alpha);
-    drawCircle(svg, cx, cy, 2, "#999999", associatedAccount.address, tooltip)
+    drawAccount(svg, cx, cy, 2, "#999999", associatedAccount.address, tooltip)
         .style("opacity", associatedAccount.alpha);
 }

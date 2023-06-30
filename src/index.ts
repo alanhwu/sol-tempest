@@ -114,12 +114,14 @@ async function processBlock(block: BlockResponse) {
     });
 
     let computeUnitMap: Map<string, number> = new Map<string, number>();
+    let addressToProgramsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
 
     if (relevantTransactions.length > 0) {
         for (const transaction of relevantTransactions) {
             if (transaction.meta && transaction.meta.logMessages) {
                 const logMessages = transaction.meta.logMessages;
-    
+                const { message } = transaction.transaction;
+                
                 for (const logMessage of logMessages) {
                     // regex to parse the log message
                     const match = logMessage.match(/Program (\S+) consumed (\d+) of \d+ compute units/);
@@ -131,6 +133,20 @@ async function processBlock(block: BlockResponse) {
                         const currentComputeUnits = computeUnitMap.get(programAddress) || 0;
 
                         computeUnitMap.set(programAddress, currentComputeUnits + computeUnitsConsumed);
+
+                        if (message && message.instructions) {
+                            message.instructions.forEach(instruction => {
+                                const programId = message.accountKeys[instruction.programIdIndex];
+                                if (programId && programId.toString() === programAddress) {
+                                    instruction.accounts.forEach(index => {
+                                        const address = message.accountKeys[index].toString();
+                                        const associatedPrograms = addressToProgramsMap.get(address) || new Set<string>();
+                                        associatedPrograms.add(programAddress);
+                                        addressToProgramsMap.set(address, associatedPrograms);
+                                    });
+                                }
+                            });
+                        }
                     }
                 }
             }
@@ -149,7 +165,7 @@ async function processBlock(block: BlockResponse) {
             };
         });
         const resolvedComputeUnitsArray = await Promise.all(computeUnitsArray);
-        // Aggregating computeUnits from meta
+
         let totalComputeUnitsMeta = 0;
         for (const transaction of block.transactions) {
             if (transaction.meta && transaction.meta.computeUnitsConsumed) {
@@ -157,11 +173,19 @@ async function processBlock(block: BlockResponse) {
             }
         }
 
-        // create a payload with additional block information
+        // Convert addressToProgramsMap to array
+        const addressToProgramsArray = Array.from(addressToProgramsMap).map(([address, associatedPrograms]) => {
+            return {
+                address,
+                associatedPrograms: Array.from(associatedPrograms)
+            };
+        });
+
         payload = JSON.stringify({
-            slot: block.parentSlot + 1, // you might want to use a different property for the slot/block number
+            slot: block.parentSlot + 1,
             computeUnitsMeta: totalComputeUnitsMeta,
-            programsComputeUnits: resolvedComputeUnitsArray
+            programsComputeUnits: resolvedComputeUnitsArray,
+            addressToPrograms: addressToProgramsArray
         });
     }
     return payload;
