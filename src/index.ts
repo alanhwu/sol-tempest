@@ -102,7 +102,7 @@ async function readBuffer(buffer: any) {
 }
 
 async function processBlock(block: BlockResponse) {
-    if (block.transactions && block.transactions.length === 0) {
+    if (block && block.transactions && block.transactions.length === 0) {
         return null;
     }
 
@@ -181,12 +181,47 @@ async function processBlock(block: BlockResponse) {
             };
         });
 
+        let informativeAccounts : InformativeAccount[] = [];
+        //for each in addressToProgramsArray, build informative object
+        for (let i = 0; i < addressToProgramsArray.length; i++) {
+            const addressToPrograms = addressToProgramsArray[i];
+            const address = addressToPrograms.address;
+            const associatedPrograms = addressToPrograms.associatedPrograms;
+
+            // Using reduce to sum compute units
+            const computeUnits = associatedPrograms.reduce((acc, programAddress) => {
+                const programInfo = resolvedComputeUnitsArray.find(p => p.programAddress === programAddress);
+                return acc + (programInfo ? programInfo.computeUnits : 0);
+            }, 0);
+
+            const currentInformativeAccount : InformativeAccount = {
+                address : address,
+                addressLabel: addressLabel(address, Cluster.MainnetBeta) || address,
+                computeUnits: +computeUnits,
+                associatedPrograms: associatedPrograms
+            }
+
+            informativeAccounts.push(currentInformativeAccount);
+
+        }
+
+        let addressToLabelMap : Map<string, string> = new Map<string, string>();
+        for (const obj of resolvedComputeUnitsArray) {
+            addressToLabelMap.set(obj.programAddress, obj.programLabel);
+        }
+        for (const obj of informativeAccounts) {
+            addressToLabelMap.set(obj.address, obj.addressLabel);
+        }
+
         payload = JSON.stringify({
             slot: block.parentSlot + 1,
             computeUnitsMeta: totalComputeUnitsMeta,
             programsComputeUnits: resolvedComputeUnitsArray,
-            addressToPrograms: addressToProgramsArray
+            addressToPrograms: addressToProgramsArray,
+            informativeAccounts: informativeAccounts,
+            addressToLabelMap: Object.fromEntries(addressToLabelMap)
         });
+
     }
     return payload;
 }
@@ -214,4 +249,12 @@ async function findAssociatedAddresses(programAddress : string, targetTransactio
 
     // Remove dupes
     return Array.from(new Set(associatedAddresses));
+}
+
+
+type InformativeAccount = {
+    address: string,
+    addressLabel: string,
+    associatedPrograms: string[],
+    computeUnits: number
 }

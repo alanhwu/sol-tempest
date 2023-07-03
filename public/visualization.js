@@ -50,7 +50,7 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
     .attr("cx", cx)
     .attr("cy", cy)
     .attr("r", radius)
-    .attr("fill", fill)
+    .attr("fill", "#999999")
     .on("mouseover", event => showTooltip(tooltip, event, content))
     .on("mouseout", () => hideTooltip(tooltip));
 
@@ -200,26 +200,128 @@ class AssociatedAccount {
     }
 }
 
+class AccountNodev2 {
+    constructor(hash, address, addressLabel, associatedPrograms, computeUnits, lightnessScale, hueScale, opacityScale){
+        this.hash = hash;
+        this.address = address;
+        this.addressLabel = addressLabel;
+        this.associatedPrograms = associatedPrograms;
+        this.computeUnits = computeUnits;
+        this.lightnessScale = lightnessScale;
+        this.hueScale = hueScale;
+        this.opacityScale = opacityScale;
+        this.fadedness = 0;
+        this.hue = "#999999"
+        // this.lightness = lightnessScale(this.computeUnits);
+        this.lightness = 90;
+    }
+
+    fade() {
+        this.fadedness += FADE_INCREMENT;
+    }
+
+    resetFadedness() {
+        this.fadedness = 0;
+    }
+
+    isFadedOut(maxFadedness) {
+        return this.fadedness >= maxFadedness;
+    }
+
+    updateComputeUnits(newComputeUnits) {
+        this.computeUnits = newComputeUnits;
+    }
+
+    get position() {
+        const xOffset = 42;
+        const yOffset = 42;
+        return {
+            x: scaleHashToNumber(this.hash, xOffset, 800 - xOffset),
+            y: scaleHashToNumber(this.hash.slice(8), yOffset, 600 - yOffset)
+        };
+    }
+
+    get fill() {
+        return `hsla(${this.hue}, 100%, ${this.lightness}%, ${1 - this.fadedness})`;
+    }
+
+    get tooltipContent() {
+        const percentage = ((this.computeUnits / 12_000_000) * 100).toFixed(2);
+        return `${this.addressLabel}<br/>Compute Units: ${this.computeUnits} (${percentage}%)`;
+    }
+
+    calculateHue(hash) {
+        const mixedHashPart = hash.slice(4, 8) + hash.slice(16, 20);
+        return this.hueScale(parseInt(mixedHashPart, 16));
+    }
+
+    get alpha() {
+        return 1 - this.fadedness;
+    }
+
+
+    drawBackgroundShape(svg) {
+        const gradientId = `gradient-${Math.random().toString(36).substring(2)}`;
+    
+        // Define a radial gradient
+        const radialGradient = svg.append("defs")
+            .append("radialGradient")
+            .attr("id", gradientId)
+            .attr("cx", "50%")
+            .attr("cy", "50%")
+            .attr("r", "50%")
+            .attr("fx", "50%")
+            .attr("fy", "50%");
+    
+        // Define the gradient stops
+        const opacity = this.opacityScale(this.computeUnits);
+        radialGradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", this.fill)
+            .attr("stop-opacity", opacity);
+        radialGradient.append("stop")
+            .attr("offset", "25%")
+            .attr("stop-color", this.fill)
+            .attr("stop-opacity", opacity * 0.8); // Multiply opacity by a factor to create a steeper drop-off
+        radialGradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", this.fill)
+            .attr("stop-opacity", "0");
+    
+        // Draw the background circle with the radial gradient
+        const size = 200; // Set a constant size for the circles
+        svg.insert("circle", ":first-child")
+            .attr("cx", this.position.x)
+            .attr("cy", this.position.y)
+            .attr("r", size)
+            .attr("fill", `url(#${gradientId})`);
+    }
+    
+}
+
 const state = {};
 const FADE_INCREMENT = 0.25;
 
+
 export async function draw(data) {
+    const originalAddressLabelMap = new Map(Object.entries(data.addressToLabelMap));
+
     const svg = d3.select("#visualization");
 
     // clear the svg
     svg.selectAll("*").remove();
 
-    const programs = data.programsComputeUnits || [];
-    const { lightnessScale, hueScale } = createScales(programs);
+    const accounts = data.informativeAccounts;
+    //const { lightnessScale, hueScale } = createScales(programs);
+    const { lightnessScale, hueScale } = createScales(accounts);
     const tooltip = createTooltip();
     const linesGroup = svg.append("g");
-    const zoneRadius = 50;
     const maxFadedness = 3;
 
 
     // Create opacity scale with exponent
     const opacityScale = d3.scalePow().exponent(1.58)
-        .domain([0, d3.max(programs, d => d.computeUnits)])
+        .domain([0, d3.max(accounts, d => d.computeUnits)])
         .range([0.01, 0.825])
         .clamp(true);
 
@@ -234,7 +336,39 @@ export async function draw(data) {
         }
     });
 
+    // Add new nodes if it's not already in the state
+    for (const account of accounts) {
+        const address = account.address;
+        const hash = await computeSha256(address);
 
+        if (address in state) {
+            // Reset fadedness if node already exists in state
+            state[address].resetFadedness(account);
+            // Update compute units
+            state[address].updateComputeUnits(account.computeUnits);
+        } else {
+            // Add new node to state
+            state[address] = new AccountNodev2(hash, address, originalAddressLabelMap[address], account.associatedPrograms, account.computeUnits, lightnessScale, hueScale, opacityScale);
+        }
+    }
+
+    // Draw nodes
+    for (let address in state) {
+        const node = state[address];
+        const { x, y } = node.position;
+        console.log(x,y);
+        // node.drawBackgroundShape(svg);
+
+        //draw associated
+
+        //draw account node
+        drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip)
+            .style("opacity", state[address].alpha);
+    }
+    pruneStrayTooltips(svg, tooltip);
+
+
+/*
     const totalComputeUnits = data.computeUnitsMeta;
     // Add new nodes if it's not already in the state
     for (const program of programs) {
@@ -270,6 +404,10 @@ export async function draw(data) {
 
     }
     pruneStrayTooltips(svg, tooltip);
+
+*/
+
+
 }
 
 async function drawAssociatedAddresses(linesGroup, programCx, programCy, associatedAccount, svg, tooltip, zoneRadius) {
