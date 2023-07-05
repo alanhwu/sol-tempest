@@ -299,19 +299,74 @@ class AccountNodev2 {
     
 }
 
-const state = {};
+class ProgramNodev2 {
+    constructor(hash, address, addressLabel, associatedAccounts, computeUnits, lightnessScale, hueScale, opacityScale){
+        this.hash = hash;
+        this.address = address;
+        this.addressLabel = addressLabel;
+        this.associatedAccounts = associatedAccounts;
+        this.computeUnits = computeUnits;
+        this.lightnessScale = lightnessScale;
+        this.hueScale = hueScale;
+        this.opacityScale = opacityScale;
+        this.fadedness = 0;
+        this.referenceCount = associatedAccounts.size;
+        this.hue = this.calculateHue(this.hash);
+        this.lightness = lightnessScale(this.computeUnits);
+    }
+
+    updateAssociations(address) {
+        this.associatedAccounts.push(address);
+    }
+
+    getReferenceCount() {
+        return this.associatedAccounts.size;
+    }
+
+    scanAssociations() {
+        this.associatedAccounts.forEach(account => {
+            if (!(account in accountState)) {
+                this.associatedAccounts = this.associatedAccounts.filter(item => item !== account);
+            }
+        });
+    }
+
+    get position() {
+        const xOffset = 42;
+        const yOffset = 42;
+        return {
+            x: scaleHashToNumber(this.hash, xOffset, 800 - xOffset),
+            y: scaleHashToNumber(this.hash.slice(8), yOffset, 600 - yOffset)
+        };
+    }
+
+    get fill() {
+        return `hsla(${this.hue}, 100%, ${this.lightness}%, ${1 - this.fadedness})`;
+    }
+
+    calculateHue(hash) {
+        const mixedHashPart = hash.slice(4, 8) + hash.slice(16, 20);
+        return this.hueScale(parseInt(mixedHashPart, 16));
+    }
+
+}
+
+let accountState = {};
+let programState = {};
 const FADE_INCREMENT = 0.25;
 
 
 export async function draw(data) {
     const originalAddressLabelMap = new Map(Object.entries(data.addressToLabelMap));
-
+    console.log(originalAddressLabelMap);
     const svg = d3.select("#visualization");
 
     // clear the svg
+    console.log("clearing");
     svg.selectAll("*").remove();
 
     const accounts = data.informativeAccounts;
+    const programCompute = data.programsComputeUnits;
     //const { lightnessScale, hueScale } = createScales(programs);
     const { lightnessScale, hueScale } = createScales(accounts);
     const tooltip = createTooltip();
@@ -326,13 +381,13 @@ export async function draw(data) {
         .clamp(true);
 
     // Fade all nodes
-    Object.values(state).forEach(node => node.fade());
+    Object.values(accountState).forEach(node => node.fade());
 
     //Go through all nodes and if something has fadedness == maxFadedness, delete it
-    Object.keys(state).forEach(address => {
-        const node = state[address];
+    Object.keys(accountState).forEach(address => {
+        const node = accountState[address];
         if (node.isFadedOut(maxFadedness)) {
-            delete state[address];
+            delete accountState[address];
         }
     });
 
@@ -341,29 +396,68 @@ export async function draw(data) {
         const address = account.address;
         const hash = await computeSha256(address);
 
-        if (address in state) {
+        if (address in accountState) {
             // Reset fadedness if node already exists in state
-            state[address].resetFadedness(account);
+            accountState[address].resetFadedness(account);
             // Update compute units
-            state[address].updateComputeUnits(account.computeUnits);
+            accountState[address].updateComputeUnits(account.computeUnits);
+            // Update Programs
+            for (const program of account.associatedPrograms) {
+                if (program in programState) {
+                    programState[program].updateAssociations(address);
+                } else {
+                    const hash = await computeSha256(program);
+                    //find compute units of program
+                    let computeUnits;
+                    for (const item of data.programsComputeUnits) {
+                        if (item.programAddress === program) {
+                            computeUnits = item.computeUnits;
+                            break;
+                        }
+                    }
+                    programState[program] = new ProgramNodev2(hash, program, originalAddressLabelMap[program], [address], computeUnits, lightnessScale, hueScale);
+                }
+            }
         } else {
             // Add new node to state
-            state[address] = new AccountNodev2(hash, address, originalAddressLabelMap[address], account.associatedPrograms, account.computeUnits, lightnessScale, hueScale, opacityScale);
+            const addressLabel = originalAddressLabelMap.get(address);
+            accountState[address] = new AccountNodev2(hash, address, addressLabel, account.associatedPrograms, account.computeUnits, lightnessScale, hueScale, opacityScale);
         }
     }
 
-    // Draw nodes
-    for (let address in state) {
-        const node = state[address];
-        const { x, y } = node.position;
-        console.log(x,y);
-        // node.drawBackgroundShape(svg);
+    // Make sure to remove all program nodes that aren't associated with alive accounts
+    //for each value in the map, run scanAssociations and then check if referenceCount == 0, if so, delete
+    Object.keys(programState).forEach(program => {
+        const node = programState[program];
+        node.scanAssociations();
+        if (node.getReferenceCount() == 0) {
+            delete programState[program];
+        }
+    });
 
-        //draw associated
+    // Draw nodes
+
+    //draw program nodes
+    for (let program in programState) {
+        const node = programState[program];
+        const { x, y } = node.position;
+        // node.drawBackgroundShape(svg);
+        drawProgram(svg, x, y, 6, node.fill, node.tooltipContent, tooltip)
+            .style("opacity", programState[program].alpha);
+    }
+
+    //draw account nodes
+    for (let address in accountState) {
+        const node = accountState[address];
+        const { x, y } = node.position;
+        //console.log(x,y);
+        // node.drawBackgroundShape(svg);
 
         //draw account node
         drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip)
-            .style("opacity", state[address].alpha);
+            .style("opacity", accountState[address].alpha);
+
+
     }
     pruneStrayTooltips(svg, tooltip);
 
