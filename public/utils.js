@@ -40,3 +40,12 @@ export function hideTooltip(tooltip) {
         .duration(500)
         .style("opacity", 0);
 }
+
+export function showTooltip(tooltip, event, content) {
+    tooltip.transition()
+        .duration(200)
+        .style("opacity", .9);
+    tooltip.html(content)
+        .style("left", (event.pageX) + "px")
+        .style("top", (event.pageY - 28) + "px");
+}
