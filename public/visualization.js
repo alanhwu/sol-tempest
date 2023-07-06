@@ -59,13 +59,14 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
 }
 
 function drawLine(linesGroup, x1, y1, x2, y2, opacity) {
+    console.log(`Drawing line from (${x1}, ${y1}) to (${x2}, ${y2}) with opacity ${opacity}`);
     linesGroup.append("line")
         .attr("x1", x1)
         .attr("y1", y1)
         .attr("x2", x2)
         .attr("y2", y2)
-        .attr("stroke", "grey")
-        .attr("stroke-width", 0.5)
+        .attr("stroke", "red")
+        .attr("stroke-width", 2)
         .style("opacity", opacity);
 }
 
@@ -252,7 +253,7 @@ export async function draw(data) {
     //const { lightnessScale, hueScale } = createScales(programs);
     const { lightnessScale, hueScale } = createScales(accounts);
     const tooltip = createTooltip();
-    const linesGroup = svg.append("g");
+    
     const maxFadedness = 3;
 
 
@@ -326,9 +327,22 @@ export async function draw(data) {
     });
 
 
+
+
     // clear the svg
     console.log("clearing");
     svg.selectAll("*").remove();
+    let lines = svg.append("g").attr("id", "linesGroup"); // add id for clarity
+
+    //Draw lines
+    for (let program in programState) {
+        const node = programState[program];
+        const { x: x1, y: y1 } = node.position;
+        for (let account of node.associatedAccounts) {
+            const { x: x2, y: y2 } = accountState[account].position;
+            drawLine(lines, x1, y1, x2, y2, node.fill, accountState[account].fill, node.alpha, accountState[account].alpha);
+        }
+    }
 
     // Draw nodes
 
