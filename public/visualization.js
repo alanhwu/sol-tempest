@@ -1,6 +1,7 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import { computeSha256, scaleHashToNumber, pruneStrayTooltips, 
     createTooltip, hideTooltip, showTooltip } from "./utils.js";    
+import { config } from "./config.js";
 
 function createScales(programs) {
     const lightnessScale = d3.scaleLinear()
@@ -58,15 +59,18 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
     return circle;
 }
 
-function drawLine(linesGroup, x1, y1, x2, y2, opacity) {
-    console.log(`Drawing line from (${x1}, ${y1}) to (${x2}, ${y2}) with opacity ${opacity}`);
+function drawLine(linesGroup, x1, y1, x2, y2, alpha1, alpha2) {
+    console.log(`fade1: ${alpha1}, fade2: ${alpha2}`)
+    console.log(`Drawing line from (${x1}, ${y1}) to (${x2}, ${y2})`);
+    const opacity = 0.75 * Math.min(alpha1, alpha2);
     linesGroup.append("line")
         .attr("x1", x1)
         .attr("y1", y1)
         .attr("x2", x2)
         .attr("y2", y2)
-        .attr("stroke", "red")
-        .attr("stroke-width", 2)
+        //.attr("stroke", "red")
+        .attr("stroke", "#34eb92")
+        .attr("stroke-width", 0.3)
         .style("opacity", opacity);
 }
 
@@ -94,8 +98,8 @@ class AccountNodev2 {
         this.fadedness = 0;
     }
 
-    isFadedOut(maxFadedness) {
-        return this.fadedness >= maxFadedness;
+    isFadedOut() {
+        return this.fadedness >= 1;
     }
 
     updateComputeUnits(newComputeUnits) {
@@ -106,8 +110,8 @@ class AccountNodev2 {
         const xOffset = 42;
         const yOffset = 42;
         return {
-            x: scaleHashToNumber(this.hash, xOffset, 800 - xOffset),
-            y: scaleHashToNumber(this.hash.slice(8), yOffset, 600 - yOffset)
+            x: scaleHashToNumber(this.hash, xOffset, config.svgLength - xOffset),
+            y: scaleHashToNumber(this.hash.slice(8), yOffset, config.svgHeight - yOffset)
         };
     }
 
@@ -129,7 +133,7 @@ class AccountNodev2 {
         return 1 - this.fadedness;
     }
 
-
+/*
     drawBackgroundShape(svg) {
         const gradientId = `gradient-${Math.random().toString(36).substring(2)}`;
     
@@ -147,25 +151,74 @@ class AccountNodev2 {
         const opacity = this.opacityScale(this.computeUnits);
         radialGradient.append("stop")
             .attr("offset", "0%")
-            .attr("stop-color", this.fill)
+            //.attr("stop-color", this.fill)
+            .attr("stop-color", "red")
             .attr("stop-opacity", opacity);
         radialGradient.append("stop")
             .attr("offset", "25%")
-            .attr("stop-color", this.fill)
+            .attr("stop-color", "red")
+            //.attr("stop-color", this.fill)
             .attr("stop-opacity", opacity * 0.8); // Multiply opacity by a factor to create a steeper drop-off
         radialGradient.append("stop")
             .attr("offset", "100%")
-            .attr("stop-color", this.fill)
+            .attr("stop-color", "red")
+            //.attr("stop-color", this.fill)
             .attr("stop-opacity", "0");
     
         // Draw the background circle with the radial gradient
-        const size = 200; // Set a constant size for the circles
+        const size = 20; // Set a constant size for the circles
         svg.insert("circle", ":first-child")
             .attr("cx", this.position.x)
             .attr("cy", this.position.y)
             .attr("r", size)
             .attr("fill", `url(#${gradientId})`);
     }
+    */
+    drawBackgroundShape(svg) {
+        const gradientId = `gradient-${Math.random().toString(36).substring(2)}`;
+        
+        // Define the color scale with an exponential scale.
+        const colorScale = d3.scalePow()
+            .exponent(3)
+            .domain([0, 12000000])
+            .range(['#FFC0CB', 'red']);
+        
+        // Define a radial gradient
+        const radialGradient = svg.append("defs")
+            .append("radialGradient")
+            .attr("id", gradientId)
+            .attr("cx", "50%")
+            .attr("cy", "50%")
+            .attr("r", "50%")
+            .attr("fx", "50%")
+            .attr("fy", "50%");
+        
+        // Define the gradient stops
+        const opacity = this.opacityScale(this.computeUnits);
+        const scaledColor = colorScale(this.computeUnits);
+        radialGradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", scaledColor)
+            .attr("stop-opacity", opacity);
+        radialGradient.append("stop")
+            .attr("offset", "25%")
+            .attr("stop-color", scaledColor)
+            .attr("stop-opacity", opacity * 0.8); // Multiply opacity by a factor to create a steeper drop-off
+        radialGradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", scaledColor)
+            .attr("stop-opacity", "0");
+        
+        // Draw the background circle with the radial gradient
+        const size = 20; // Set a constant size for the circles
+        svg.insert("circle", ":first-child")
+            .attr("cx", this.position.x)
+            .attr("cy", this.position.y)
+            .attr("r", size)
+            .attr("fill", `url(#${gradientId})`);
+    }
+    
+    
     
 }
 
@@ -205,13 +258,14 @@ class ProgramNodev2 {
         const xOffset = 42;
         const yOffset = 42;
         return {
-            x: scaleHashToNumber(this.hash, xOffset, 800 - xOffset),
-            y: scaleHashToNumber(this.hash.slice(8), yOffset, 600 - yOffset)
+            x: scaleHashToNumber(this.hash, xOffset, config.svgLength - xOffset),
+            y: scaleHashToNumber(this.hash.slice(8), yOffset, config.svgHeight- yOffset)
         };
     }
 
     get fill() {
-        return `hsla(${this.hue}, 100%, ${this.lightness}%, ${1 - this.fadedness})`;
+        const opacity = this.alpha * 0.4 + 0.6;
+        return `hsla(${this.hue}, 100%, 50%, ${opacity})`;
     }
 
     calculateHue(hash) {
@@ -231,15 +285,47 @@ class ProgramNodev2 {
         this.fadedness = 0;
     }
 
-    isFadedOut(maxFadedness) {
-        return this.fadedness >= maxFadedness;
+    isFadedOut() {
+        return this.fadedness >= 1;
+    }
+
+    get alpha() {
+        return 1 - this.fadedness;
+    }
+
+}
+
+class Line {
+    constructor(program, account) {
+        this.program = program;
+        this.account = account;
+    }
+
+    refresh() {
+        this.fadedness = Math.min(program.alpha, account.alpha);
+    }
+
+    get programPosition() {
+        return this.program.position;
+    }
+
+    get accountPosition() {
+        return this.account.position;
+    }
+
+    checkDeath() {
+        if (!this.program.alpha || !this.account.alpha) {
+            return true;
+        }
+        return false;
     }
 
 }
 
 let accountState = {};
 let programState = {};
-const FADE_INCREMENT = 0.25;
+let lineState  = [];
+const FADE_INCREMENT = 0.34;
 
 
 export async function draw(data) {
@@ -247,20 +333,14 @@ export async function draw(data) {
     console.log(originalAddressLabelMap);
     const svg = d3.select("#visualization");
 
-
     const accounts = data.informativeAccounts;
-    const programCompute = data.programsComputeUnits;
-    //const { lightnessScale, hueScale } = createScales(programs);
     const { lightnessScale, hueScale } = createScales(accounts);
     const tooltip = createTooltip();
-    
-    const maxFadedness = 3;
-
 
     // Create opacity scale with exponent
     const opacityScale = d3.scalePow().exponent(1.58)
         .domain([0, d3.max(accounts, d => d.computeUnits)])
-        .range([0.01, 0.825])
+        .range([0.2, 0.825])
         .clamp(true);
 
     // Fade all nodes
@@ -268,19 +348,43 @@ export async function draw(data) {
     Object.values(programState).forEach(node => node.fade());
 
     //Go through all nodes and if something has fadedness == maxFadedness, delete it
+
+    Object.values(accountState).forEach(node => {
+        if (node.isFadedOut()) {
+            console.log("Deleting account node");
+            delete accountState[node.address];
+        }
+    });
+    Object.values(programState).forEach(node => {
+        if (node.isFadedOut()) {
+            console.log("Deleting program node");
+            delete programState[node.address];
+        }
+    });
+
+    //go through lines and delete if either program or account is undefined
+    lineState.forEach(line => {
+        if (line.checkDeath()) {
+            console.log("Deleting line");
+            lineState = lineState.filter(item => item !== line);
+        }
+    });
+
+    /*
     Object.keys(accountState).forEach(address => {
         const node = accountState[address];
-        if (node.isFadedOut(maxFadedness)) {
+        if (node.isFadedOut()) {
             delete accountState[address];
         }
     });
 
     Object.keys(programState).forEach(address => {
         const node = programState[address];
-        if (node.isFadedOut(maxFadedness)) {
+        if (node.isFadedOut()) {
             delete programState[address];
         }
     });
+    */
 
     // Add new nodes if it's not already in the state
     for (const account of accounts) {
@@ -334,14 +438,33 @@ export async function draw(data) {
     svg.selectAll("*").remove();
     let lines = svg.append("g").attr("id", "linesGroup"); // add id for clarity
 
-    //Draw lines
+
+    // Get rid of bad lines
+    for (let i = 0; i < lineState.length; i++) {
+        const line = lineState[i];
+        if (line.checkDeath()) {
+            lineState.splice(i, 1);
+            i--;
+        }
+    }
+
+    // Add valid lines
     for (let program in programState) {
         const node = programState[program];
-        const { x: x1, y: y1 } = node.position;
+        // const { x: x1, y: y1 } = node.position;
         for (let account of node.associatedAccounts) {
-            const { x: x2, y: y2 } = accountState[account].position;
-            drawLine(lines, x1, y1, x2, y2, node.fill, accountState[account].fill, node.alpha, accountState[account].alpha);
+            lineState.push(new Line(node, accountState[account]));
+            // const { x: x2, y: y2 } = accountState[account].position;
+            // drawLine(lines, x1, y1, x2, y2, node.alpha, accountState[account].alpha);
         }
+    }
+
+    //Draw lines
+    for (let line of lineState) {
+        const { x: x1, y: y1 } = line.programPosition;
+        const { x: x2, y: y2 } = line.accountPosition;
+        console.log(`drawing with alpha ${line.program.alpha} and ${line.account.alpha}`);
+        drawLine(lines, x1, y1, x2, y2, line.program.alpha, line.account.alpha);
     }
 
     // Draw nodes
@@ -365,7 +488,13 @@ export async function draw(data) {
         //draw account node
         drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip)
             .style("opacity", accountState[address].alpha);
+        node.drawBackgroundShape(svg);
     }
 
-    pruneStrayTooltips(svg, tooltip);
+    //pruneStrayTooltips(svg, tooltip);
+    //d3.selectAll(".tooltip").remove();
+    d3.selectAll(".tooltip")
+    .filter((d, i, nodes) => i < nodes.length - 1)
+    .remove();
+  
 }

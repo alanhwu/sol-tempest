@@ -12,6 +12,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 3000;
+import { config } from './config';
 app.use(express.static('public'));
 
 //ws to solana
@@ -203,6 +204,13 @@ async function processBlock(block: BlockResponse) {
 
             informativeAccounts.push(currentInformativeAccount);
 
+        }
+
+        if (config) {
+            // Sort informativeAccounts array based on computeUnits in descending order
+            informativeAccounts.sort((a, b) => b.computeUnits - a.computeUnits);
+            // Keep only the top compute unit accounts based on the configuration
+            informativeAccounts = informativeAccounts.slice(0, config.topAccountsCount);
         }
 
         let addressToLabelMap : Map<string, string> = new Map<string, string>();
