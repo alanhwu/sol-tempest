@@ -132,48 +132,7 @@ class AccountNodev2 {
     get alpha() {
         return 1 - this.fadedness;
     }
-
-/*
-    drawBackgroundShape(svg) {
-        const gradientId = `gradient-${Math.random().toString(36).substring(2)}`;
     
-        // Define a radial gradient
-        const radialGradient = svg.append("defs")
-            .append("radialGradient")
-            .attr("id", gradientId)
-            .attr("cx", "50%")
-            .attr("cy", "50%")
-            .attr("r", "50%")
-            .attr("fx", "50%")
-            .attr("fy", "50%");
-    
-        // Define the gradient stops
-        const opacity = this.opacityScale(this.computeUnits);
-        radialGradient.append("stop")
-            .attr("offset", "0%")
-            //.attr("stop-color", this.fill)
-            .attr("stop-color", "red")
-            .attr("stop-opacity", opacity);
-        radialGradient.append("stop")
-            .attr("offset", "25%")
-            .attr("stop-color", "red")
-            //.attr("stop-color", this.fill)
-            .attr("stop-opacity", opacity * 0.8); // Multiply opacity by a factor to create a steeper drop-off
-        radialGradient.append("stop")
-            .attr("offset", "100%")
-            .attr("stop-color", "red")
-            //.attr("stop-color", this.fill)
-            .attr("stop-opacity", "0");
-    
-        // Draw the background circle with the radial gradient
-        const size = 20; // Set a constant size for the circles
-        svg.insert("circle", ":first-child")
-            .attr("cx", this.position.x)
-            .attr("cy", this.position.y)
-            .attr("r", size)
-            .attr("fill", `url(#${gradientId})`);
-    }
-    */
     drawBackgroundShape(svg) {
         const gradientId = `gradient-${Math.random().toString(36).substring(2)}`;
         
@@ -327,7 +286,6 @@ let programState = {};
 let lineState  = [];
 const FADE_INCREMENT = 0.34;
 
-
 export async function draw(data) {
     const originalAddressLabelMap = new Map(Object.entries(data.addressToLabelMap));
     console.log(originalAddressLabelMap);
@@ -369,22 +327,6 @@ export async function draw(data) {
             lineState = lineState.filter(item => item !== line);
         }
     });
-
-    /*
-    Object.keys(accountState).forEach(address => {
-        const node = accountState[address];
-        if (node.isFadedOut()) {
-            delete accountState[address];
-        }
-    });
-
-    Object.keys(programState).forEach(address => {
-        const node = programState[address];
-        if (node.isFadedOut()) {
-            delete programState[address];
-        }
-    });
-    */
 
     // Add new nodes if it's not already in the state
     for (const account of accounts) {
@@ -430,9 +372,6 @@ export async function draw(data) {
         }
     });
 
-
-
-
     // clear the svg
     console.log("clearing");
     svg.selectAll("*").remove();
@@ -473,7 +412,6 @@ export async function draw(data) {
     for (let program in programState) {
         const node = programState[program];
         const { x, y } = node.position;
-        // node.drawBackgroundShape(svg);
         drawProgram(svg, x, y, 6, node.fill, node.tooltipContent, tooltip)
             .style("opacity", programState[program].alpha);
     }
@@ -482,17 +420,13 @@ export async function draw(data) {
     for (let address in accountState) {
         const node = accountState[address];
         const { x, y } = node.position;
-        //console.log(x,y);
-        // node.drawBackgroundShape(svg);
-
-        //draw account node
+        // draw each
         drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip)
             .style("opacity", accountState[address].alpha);
         node.drawBackgroundShape(svg);
     }
 
-    //pruneStrayTooltips(svg, tooltip);
-    //d3.selectAll(".tooltip").remove();
+    //Remove all but the last tooltip
     d3.selectAll(".tooltip")
     .filter((d, i, nodes) => i < nodes.length - 1)
     .remove();
