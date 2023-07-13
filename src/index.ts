@@ -12,6 +12,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 3000;
+import { config } from './config';
 app.use(express.static('public'));
 
 //ws to solana
@@ -102,7 +103,7 @@ async function readBuffer(buffer: any) {
 }
 
 async function processBlock(block: BlockResponse) {
-    if (block.transactions && block.transactions.length === 0) {
+    if (block && block.transactions && block.transactions.length === 0) {
         return null;
     }
 
@@ -114,12 +115,14 @@ async function processBlock(block: BlockResponse) {
     });
 
     let computeUnitMap: Map<string, number> = new Map<string, number>();
+    let addressToProgramsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
 
     if (relevantTransactions.length > 0) {
         for (const transaction of relevantTransactions) {
             if (transaction.meta && transaction.meta.logMessages) {
                 const logMessages = transaction.meta.logMessages;
-    
+                const { message } = transaction.transaction;
+                
                 for (const logMessage of logMessages) {
                     // regex to parse the log message
                     const match = logMessage.match(/Program (\S+) consumed (\d+) of \d+ compute units/);
@@ -131,6 +134,20 @@ async function processBlock(block: BlockResponse) {
                         const currentComputeUnits = computeUnitMap.get(programAddress) || 0;
 
                         computeUnitMap.set(programAddress, currentComputeUnits + computeUnitsConsumed);
+
+                        if (message && message.instructions) {
+                            message.instructions.forEach(instruction => {
+                                const programId = message.accountKeys[instruction.programIdIndex];
+                                if (programId && programId.toString() === programAddress) {
+                                    instruction.accounts.forEach(index => {
+                                        const address = message.accountKeys[index].toString();
+                                        const associatedPrograms = addressToProgramsMap.get(address) || new Set<string>();
+                                        associatedPrograms.add(programAddress);
+                                        addressToProgramsMap.set(address, associatedPrograms);
+                                    });
+                                }
+                            });
+                        }
                     }
                 }
             }
@@ -149,7 +166,7 @@ async function processBlock(block: BlockResponse) {
             };
         });
         const resolvedComputeUnitsArray = await Promise.all(computeUnitsArray);
-        // Aggregating computeUnits from meta
+
         let totalComputeUnitsMeta = 0;
         for (const transaction of block.transactions) {
             if (transaction.meta && transaction.meta.computeUnitsConsumed) {
@@ -157,12 +174,62 @@ async function processBlock(block: BlockResponse) {
             }
         }
 
-        // create a payload with additional block information
-        payload = JSON.stringify({
-            slot: block.parentSlot + 1, // you might want to use a different property for the slot/block number
-            computeUnitsMeta: totalComputeUnitsMeta,
-            programsComputeUnits: resolvedComputeUnitsArray
+        // Convert addressToProgramsMap to array
+        const addressToProgramsArray = Array.from(addressToProgramsMap).map(([address, associatedPrograms]) => {
+            return {
+                address,
+                associatedPrograms: Array.from(associatedPrograms)
+            };
         });
+
+        let informativeAccounts : InformativeAccount[] = [];
+        //for each in addressToProgramsArray, build informative object
+        for (let i = 0; i < addressToProgramsArray.length; i++) {
+            const addressToPrograms = addressToProgramsArray[i];
+            const address = addressToPrograms.address;
+            const associatedPrograms = addressToPrograms.associatedPrograms;
+
+            // Using reduce to sum compute units
+            const computeUnits = associatedPrograms.reduce((acc, programAddress) => {
+                const programInfo = resolvedComputeUnitsArray.find(p => p.programAddress === programAddress);
+                return acc + (programInfo ? programInfo.computeUnits : 0);
+            }, 0);
+
+            const currentInformativeAccount : InformativeAccount = {
+                address : address,
+                addressLabel: addressLabel(address, Cluster.MainnetBeta) || address,
+                computeUnits: +computeUnits,
+                associatedPrograms: associatedPrograms
+            }
+
+            informativeAccounts.push(currentInformativeAccount);
+
+        }
+
+        if (config) {
+            // Sort informativeAccounts array based on computeUnits in descending order
+            informativeAccounts.sort((a, b) => b.computeUnits - a.computeUnits);
+            // Keep only the top compute unit accounts based on the configuration
+            informativeAccounts = informativeAccounts.slice(0, config.topAccountsCount);
+        }
+
+        let addressToLabelMap : Map<string, string> = new Map<string, string>();
+        for (const obj of resolvedComputeUnitsArray) {
+            addressToLabelMap.set(obj.programAddress, obj.programLabel);
+        }
+        for (const obj of informativeAccounts) {
+            addressToLabelMap.set(obj.address, obj.addressLabel);
+        }
+
+        payload = JSON.stringify({
+            slot: block.parentSlot + 1,
+            computeUnitsMeta: totalComputeUnitsMeta,
+            programsComputeUnits: resolvedComputeUnitsArray,
+            addressToPrograms: addressToProgramsArray,
+            informativeAccounts: informativeAccounts,
+            addressToLabelMap: Object.fromEntries(addressToLabelMap)
+        });
+
     }
     return payload;
 }
@@ -190,4 +257,12 @@ async function findAssociatedAddresses(programAddress : string, targetTransactio
 
     // Remove dupes
     return Array.from(new Set(associatedAddresses));
+}
+
+
+type InformativeAccount = {
+    address: string,
+    addressLabel: string,
+    associatedPrograms: string[],
+    computeUnits: number
 }

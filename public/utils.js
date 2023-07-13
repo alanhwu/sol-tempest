@@ -13,22 +13,6 @@ export function scaleHashToNumber(hash, min, max) {
     return ((hashInt / 0xffffffff) * (max - min)) + min; //normalize and then scale
 }
 
-export function pruneStrayTooltips(svg, tooltip) {
-    const observer = new MutationObserver(mutations => {
-        for (const mutation of mutations) {
-            if (mutation.type === 'childList') {
-                const circleExists = svg.select("circle").node();
-                const lineExists = svg.select("line").node();
-                if (!circleExists && !lineExists) {
-                    tooltip.remove();
-                }
-            }
-        }
-    });
-
-    observer.observe(svg.node(), { childList: true });
-}
-
 export function createTooltip() {
     return d3.select("body").append("div")
         .attr("class", "tooltip")
@@ -39,4 +23,13 @@ export function hideTooltip(tooltip) {
     tooltip.transition()
         .duration(500)
         .style("opacity", 0);
+}
+
+export function showTooltip(tooltip, event, content) {
+    tooltip.transition()
+        .duration(200)
+        .style("opacity", .9);
+    tooltip.html(content)
+        .style("left", (event.pageX) + "px")
+        .style("top", (event.pageY - 28) + "px");
 }
