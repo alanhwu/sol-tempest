@@ -1,7 +1,11 @@
 import { BlockResponse, Connection, GetVersionedBlockConfig } from '@solana/web3.js';
+require('dotenv').config();
 
-
-const connection = new Connection('https://api.mainnet-beta.solana.com');
+const url = process.env.SOLANA_RPC_URL; // Using the RPC URL from the .env file
+if (url == undefined) {
+    throw new Error('SOLANA_RPC_URL is undefined');
+}
+const connection = new Connection(url);
 
 export const fetchBlockData = async (slot : number): Promise<BlockResponse | null> => {
     // Fetch the given confirmed block
@@ -19,7 +23,6 @@ export const fetchBlockData = async (slot : number): Promise<BlockResponse | nul
     }
 
 }
-
 
 export const fetchLatestBlockData = async (): Promise<BlockResponse | null> => {
 

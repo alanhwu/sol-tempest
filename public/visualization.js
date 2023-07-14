@@ -1,5 +1,5 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
-import { computeSha256, scaleHashToNumber, pruneStrayTooltips, 
+import { computeSha256, scaleHashToNumber, 
     createTooltip, hideTooltip, showTooltip } from "./utils.js";    
 import { config } from "./config.js";
 

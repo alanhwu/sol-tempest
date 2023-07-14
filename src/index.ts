@@ -27,7 +27,6 @@ solanaWs.on('open', () => {
     }));
 });
 
-let throttle = 7;
 let promiseQueue : any = [];
 solanaWs.on('message', async (data: WebSocket.Data) => {
     console.log('Received data from Solana:', data);
@@ -42,18 +41,8 @@ solanaWs.on('message', async (data: WebSocket.Data) => {
     const slot = blobData.params.result.slot;
     console.log('slot:', slot - 10);
 
-    if (throttle === 0) {
-        try {
-            const fetchPromise = fetchBlockData(slot - 10);
-            promiseQueue.push(fetchPromise); // Add promise to queue
-            throttle = 7; // Reset the throttle
-        } catch (error) {
-            console.error('Error fetching block data:', error);
-        }
-
-    } else {
-        throttle--;
-    }
+    const fetchPromise = fetchBlockData(slot - 10);
+    promiseQueue.push(fetchPromise); // Add promise to queue
 });
 
 // Function that resolves promises from the queue and sends to the front-end
@@ -79,7 +68,7 @@ const resolvePromises = async () => {
                 console.error('Error fetching block data:', error);
             }
         }
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second
+        await new Promise(resolve => setTimeout(resolve, 300)); // Wait for 1 second
     }
 };
 resolvePromises();
@@ -103,7 +92,7 @@ async function readBuffer(buffer: any) {
 }
 
 async function processBlock(block: BlockResponse) {
-    if (block && block.transactions && block.transactions.length === 0) {
+    if (!block || !block.transactions || block.transactions.length === 0) {
         return null;
     }
 
@@ -112,7 +101,9 @@ async function processBlock(block: BlockResponse) {
         return transaction.meta
         && transaction.meta.computeUnitsConsumed 
         && transaction.meta.computeUnitsConsumed > 0;
-    });
+    }); // both legacy and version 0 transactions have this field
+
+    console.log(relevantTransactions);
 
     let computeUnitMap: Map<string, number> = new Map<string, number>();
     let addressToProgramsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
@@ -121,7 +112,7 @@ async function processBlock(block: BlockResponse) {
         for (const transaction of relevantTransactions) {
             if (transaction.meta && transaction.meta.logMessages) {
                 const logMessages = transaction.meta.logMessages;
-                const { message } = transaction.transaction;
+                const { message } = transaction.transaction; //this is the part that differes between legacy and version 0 transactions
                 
                 for (const logMessage of logMessages) {
                     // regex to parse the log message
