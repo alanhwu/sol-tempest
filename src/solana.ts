@@ -1,7 +1,7 @@
 import { BlockResponse, Connection, GetVersionedBlockConfig } from '@solana/web3.js';
 require('dotenv').config();
 
-const url = process.env.SOLANA_RPC_URL; // Using the RPC URL from the .env file
+const url = 'https://' + process.env.SOLANA_RPC_URL; // Using the RPC URL from the .env file
 if (url == undefined) {
     throw new Error('SOLANA_RPC_URL is undefined');
 }
@@ -17,8 +17,9 @@ export const fetchBlockData = async (slot : number): Promise<BlockResponse | nul
     try {
         const block = await connection.getBlock(slot, blockConfig);
         return block;
-    } catch
+    } catch (error)
     {
+        console.log(error);
         return null;
     }
 

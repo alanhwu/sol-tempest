@@ -15,15 +15,17 @@ const PORT = process.env.PORT || 3000;
 import { config } from './config';
 app.use(express.static('public'));
 
+const url = process.env.SOLANA_RPC_URL; // Using the RPC URL from the .env file
 //ws to solana
-const solanaWs = new WebSocket('wss://api.mainnet-beta.solana.com');
-
+const solanaWs = new WebSocket('wss://' + url);
 // Send the subscription message once connected
 solanaWs.on('open', () => {
     solanaWs.send(JSON.stringify({
         "jsonrpc": "2.0",
         "id": 1,
-        "method": "slotSubscribe"
+        "method": "slotSubscribe",
+        //"method": "blockSubscribe",
+        //"params": ["all"]
     }));
 });
 
@@ -32,16 +34,29 @@ solanaWs.on('message', async (data: WebSocket.Data) => {
     console.log('Received data from Solana:', data);
 
     const blobData = await readBuffer(data);
-
+    //console.log(blobData);
     //if it's just the confirmation of subscription, move on
     if (!blobData.hasOwnProperty('params')) {
         return;
     }
-    
+
     const slot = blobData.params.result.slot;
     console.log('slot:', slot - 10);
 
-    const fetchPromise = fetchBlockData(slot - 10);
+    // const block = await fetchBlockData(slot - 30);
+    // if (!block) {
+    //     console.log('block ${slot - 30} is null');
+    //     return;
+    // }
+    // const payload = await processBlock(block);
+    // console.log(`got block ${slot - 30}`);
+    // wss.clients.forEach(client => {
+    //     if (client.readyState === WebSocket.OPEN) {
+    //         client.send(payload);
+    //     }
+    // });
+    // console.log(payload);
+    const fetchPromise = fetchBlockData(slot - 70);
     promiseQueue.push(fetchPromise); // Add promise to queue
 });
 
@@ -69,6 +84,7 @@ const resolvePromises = async () => {
             }
         }
         await new Promise(resolve => setTimeout(resolve, 300)); // Wait for 1 second
+        console.log(promiseQueue);
     }
 };
 resolvePromises();
