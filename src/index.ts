@@ -15,45 +15,49 @@ const PORT = process.env.PORT || 3000;
 import { config } from './config';
 app.use(express.static('public'));
 
+const url = process.env.SOLANA_RPC_URL; // Using the RPC URL from the .env file
 //ws to solana
-const solanaWs = new WebSocket('wss://api.mainnet-beta.solana.com');
-
+const solanaWs = new WebSocket('wss://' + url);
 // Send the subscription message once connected
 solanaWs.on('open', () => {
     solanaWs.send(JSON.stringify({
         "jsonrpc": "2.0",
         "id": 1,
-        "method": "slotSubscribe"
+        "method": "slotSubscribe",
+        //"method": "blockSubscribe",
+        //"params": ["all"]
     }));
 });
 
-let throttle = 7;
 let promiseQueue : any = [];
 solanaWs.on('message', async (data: WebSocket.Data) => {
     console.log('Received data from Solana:', data);
 
     const blobData = await readBuffer(data);
-
+    //console.log(blobData);
     //if it's just the confirmation of subscription, move on
     if (!blobData.hasOwnProperty('params')) {
         return;
     }
-    
+
     const slot = blobData.params.result.slot;
     console.log('slot:', slot - 10);
 
-    if (throttle === 0) {
-        try {
-            const fetchPromise = fetchBlockData(slot - 10);
-            promiseQueue.push(fetchPromise); // Add promise to queue
-            throttle = 7; // Reset the throttle
-        } catch (error) {
-            console.error('Error fetching block data:', error);
-        }
-
-    } else {
-        throttle--;
-    }
+    // const block = await fetchBlockData(slot - 30);
+    // if (!block) {
+    //     console.log('block ${slot - 30} is null');
+    //     return;
+    // }
+    // const payload = await processBlock(block);
+    // console.log(`got block ${slot - 30}`);
+    // wss.clients.forEach(client => {
+    //     if (client.readyState === WebSocket.OPEN) {
+    //         client.send(payload);
+    //     }
+    // });
+    // console.log(payload);
+    const fetchPromise = fetchBlockData(slot - 70);
+    promiseQueue.push(fetchPromise); // Add promise to queue
 });
 
 // Function that resolves promises from the queue and sends to the front-end
@@ -79,7 +83,8 @@ const resolvePromises = async () => {
                 console.error('Error fetching block data:', error);
             }
         }
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second
+        await new Promise(resolve => setTimeout(resolve, 300)); // Wait for 1 second
+        console.log(promiseQueue);
     }
 };
 resolvePromises();
@@ -103,7 +108,7 @@ async function readBuffer(buffer: any) {
 }
 
 async function processBlock(block: BlockResponse) {
-    if (block && block.transactions && block.transactions.length === 0) {
+    if (!block || !block.transactions || block.transactions.length === 0) {
         return null;
     }
 
@@ -112,7 +117,9 @@ async function processBlock(block: BlockResponse) {
         return transaction.meta
         && transaction.meta.computeUnitsConsumed 
         && transaction.meta.computeUnitsConsumed > 0;
-    });
+    }); // both legacy and version 0 transactions have this field
+
+    console.log(relevantTransactions);
 
     let computeUnitMap: Map<string, number> = new Map<string, number>();
     let addressToProgramsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
@@ -121,7 +128,7 @@ async function processBlock(block: BlockResponse) {
         for (const transaction of relevantTransactions) {
             if (transaction.meta && transaction.meta.logMessages) {
                 const logMessages = transaction.meta.logMessages;
-                const { message } = transaction.transaction;
+                const { message } = transaction.transaction; //this is the part that differes between legacy and version 0 transactions
                 
                 for (const logMessage of logMessages) {
                     // regex to parse the log message
