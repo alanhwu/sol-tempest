@@ -287,7 +287,9 @@ let lineState  = [];
 const FADE_INCREMENT = 0.34;
 
 export async function draw(data) {
-    const originalAddressLabelMap = new Map(Object.entries(data.addressToLabelMap));
+    let originalAddressLabelMap = data.addressToLabelMap || {}; // Check if data.addressToLabelMap exists, otherwise use an empty object
+    const originalAddressLabelMapEntries = Object.entries(originalAddressLabelMap);
+    originalAddressLabelMap = new Map(originalAddressLabelMapEntries);
     console.log(originalAddressLabelMap);
     const svg = d3.select("#visualization");
 
