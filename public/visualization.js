@@ -283,6 +283,13 @@ export async function draw(data) {
     const originalAddressLabelMapEntries = Object.entries(originalAddressLabelMap);
     originalAddressLabelMap = new Map(originalAddressLabelMapEntries);
     //console.log(originalAddressLabelMap);
+
+    let programComputeUnitsMap = new Map();
+    data.programsComputeUnits.forEach(item => {
+        programComputeUnitsMap.set(item.programAddress, item.computeUnits);
+    });
+
+
     const svg = d3.select("#visualization");
 
     const accounts = data.informativeAccounts;
@@ -329,7 +336,11 @@ export async function draw(data) {
     });
 
 
+
     // Add new nodes if it's not already in the state
+    if (!accounts) {
+        return;
+    }
     for (const account of accounts) {
         const address = account.address;
         const hash = await computeSha256(address);
@@ -346,13 +357,7 @@ export async function draw(data) {
                 } else {
                     const hash = await computeSha256(program);
                     //find compute units of program
-                    let computeUnits;
-                    for (const item of data.programsComputeUnits) {
-                        if (item.programAddress === program) {
-                            computeUnits = item.computeUnits;
-                            break;
-                        }
-                    }
+                    let computeUnits = programComputeUnitsMap.get(program);
                     programState[program] = new ProgramNodev2(hash, program, originalAddressLabelMap.get(program), [address], computeUnits, lightnessScale, hueScale);
                 }
             }
@@ -382,6 +387,7 @@ export async function draw(data) {
     // Get rid of bad lines
     lineState = lineState.filter(line => !line.checkDeath());
 
+    let lineKeysSet = new Set(lineState.map(line => line.key));
     // Add valid lines
     for (let program in programState) {
         const node = programState[program];
@@ -389,11 +395,10 @@ export async function draw(data) {
             // Create a key that uniquely identifies this line
             const lineKey = `${program}-${account}`;
 
-            // Check if this line already exists in `lineState`
-            if (!lineState.some(line => line.key === lineKey)) {
-                // If it doesn't exist, add it to `lineState`
+            if (!lineKeysSet.has(lineKey)) {
                 lineState.push(new Line(node, accountState[account], lineKey));
-            }
+                lineKeysSet.add(lineKey);
+            }            
         }
     }
     console.log(lineState.length);
@@ -429,6 +434,5 @@ export async function draw(data) {
     //Remove all but the last tooltip
     d3.selectAll(".tooltip")
     .filter((d, i, nodes) => i < nodes.length - 1)
-    .remove();
-  
+    .remove(); 
 }
