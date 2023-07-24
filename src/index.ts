@@ -328,7 +328,7 @@ function handleLegacyTransactions(legacyTransactions : any, computeUnitMap: Map<
                                 associatedPrograms.add(
                                     {
                                         programAddress: programAddress,
-                                        compute: computeUnitsConsumed/count
+                                        compute: Math.floor(computeUnitsConsumed / count)
                                     }
                                 );
                                 addressToProgramsMap.set(address, associatedPrograms);
@@ -376,7 +376,7 @@ function handleVersion0Transactions(version0Transactions: any, computeUnitMap: M
                                 associatedPrograms.add(
                                     {
                                         programAddress: programAddress,
-                                        compute: computeUnitsConsumed / count
+                                        compute: Math.floor(computeUnitsConsumed / count)
                                     }
                                 );
                                 addressToProgramsMap.set(address, associatedPrograms);
