@@ -28,6 +28,73 @@ solanaWs.on('open', () => {
 });
 
 let promiseQueue : any = [];
+
+let processingQueue :any = []; // Holds the processed payloads
+let isFetching = false;
+
+solanaWs.on('message', async (data: WebSocket.Data) => {
+    console.log('Received data from Solana:', data);
+    const blobData = await readBuffer(data);
+    //if it's just the confirmation of subscription, move on
+    if (!blobData.hasOwnProperty('params')) {
+        return;
+    }
+
+    const slot = blobData.params.result.slot;
+    console.log('slot:', slot - 10);
+
+    const fetchPromise = fetchBlockData(slot - 70);
+    promiseQueue.push(fetchPromise); // Add promise to queue
+});
+
+// Function that resolves promises from the queue and processes to processingQueue
+const processQueueItem = async () => {
+    if (!isFetching && promiseQueue.length > 0) {
+        isFetching = true;
+        const fetchPromise = promiseQueue.shift();
+        try {
+            const fetchedBlock : solana.BlockResponse = await fetchPromise;
+            console.log('block:', fetchedBlock);
+                
+            // get a map of program addresses to compute units
+            const payload = await processBlock(fetchedBlock);
+            processingQueue.push(payload); // Add the processed block to processingQueue
+                
+        } catch (error) {
+            console.error('Error fetching block data:', error);
+        } finally {
+            isFetching = false;  // Finished processing, ready for the next block
+        }
+    }
+};
+
+let lastSentTime = Date.now();
+
+// Function that sends items from the processing queue to the front-end
+const sendToClients = () => {
+    if (processingQueue.length > 0 && Date.now() - lastSentTime >= 300) {
+        const payload = processingQueue.shift();
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(payload);
+            }
+        });
+        lastSentTime = Date.now();
+    }
+};
+
+
+
+setInterval(processQueueItem, 300); // Process a queue item every 300ms
+setInterval(sendToClients, 10); // Check if a processed block can be sent to the front-end every 10ms
+
+//setInterval(sendToClients, 300); // Send a processed block to the front-end every 300ms
+
+
+
+
+
+/*
 solanaWs.on('message', async (data: WebSocket.Data) => {
     console.log('Received data from Solana:', data);
     const blobData = await readBuffer(data);
@@ -57,33 +124,33 @@ solanaWs.on('message', async (data: WebSocket.Data) => {
 });
 
 // Function that resolves promises from the queue and sends to the front-end
-const resolvePromises = async () => {
-    while (true) {
-        if (promiseQueue.length > 0) {
-            const fetchPromise = promiseQueue.shift();
-            try {
-                const fetchedBlock : solana.BlockResponse = await fetchPromise;
-                console.log('block:', fetchedBlock);
+const processQueueItem = async () => {
+    if (promiseQueue.length > 0) {
+        const fetchPromise = promiseQueue.shift();
+        try {
+            const fetchedBlock : solana.BlockResponse = await fetchPromise;
+            console.log('block:', fetchedBlock);
                 
-                // get a map of program addresses to compute units
-                const payload = await processBlock(fetchedBlock);
+            // get a map of program addresses to compute units
+            const payload = await processBlock(fetchedBlock);
                 
-                // send the JSON string to the frontend
-                wss.clients.forEach(client => {
-                    if (client.readyState === WebSocket.OPEN) {
-                        client.send(payload);
-                    }
-                });
+            // send the JSON string to the frontend
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(payload);
+                }
+            });
                 
-            } catch (error) {
-                console.error('Error fetching block data:', error);
-            }
+        } catch (error) {
+            console.error('Error fetching block data:', error);
         }
-        await new Promise(resolve => setTimeout(resolve, 300)); // Wait for 1 second
-        console.log(promiseQueue);
     }
 };
-resolvePromises();
+
+// Process a queue item every 300ms
+setInterval(processQueueItem, 300);
+
+*/
 
 wss.on('connection', (ws) => {
     console.log('Client connected');
@@ -147,8 +214,10 @@ async function processBlock(block: solana.VersionedBlockResponse) {
 
         //adding up all the compute units in the block. this will be one of the payload params.
         let totalComputeUnitsMeta = 0;
+        let highestComputeUnit = 0;
         for (const transaction of block.transactions) {
             if (transaction.meta && transaction.meta.computeUnitsConsumed) {
+                highestComputeUnit = Math.max(highestComputeUnit, transaction.meta.computeUnitsConsumed);
                 totalComputeUnitsMeta += transaction.meta.computeUnitsConsumed;
             }
         }
@@ -214,7 +283,8 @@ async function processBlock(block: solana.VersionedBlockResponse) {
             programsComputeUnits: resolvedComputeUnitsArray, // holds type of progA, progL, compU, associatedA
             addressToPrograms: addressToProgramsArray,
             informativeAccounts: informativeAccounts,
-            addressToLabelMap: Object.fromEntries(addressToLabelMap)
+            addressToLabelMap: Object.fromEntries(addressToLabelMap),
+            maxComputeUnits: highestComputeUnit
         });
 
     }

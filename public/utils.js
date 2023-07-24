@@ -33,3 +33,15 @@ export function showTooltip(tooltip, event, content) {
         .style("left", (event.pageX) + "px")
         .style("top", (event.pageY - 28) + "px");
 }
+
+export function createScales(maxComputeUnits) {
+    const lightnessScale = d3.scaleLinear()
+        .domain([0, maxComputeUnits])
+        .range([30, 60]);
+
+    const hueScale = d3.scaleLinear()
+        .domain([0, 0xffffffff])
+        .range([270, 150]);
+
+    return { lightnessScale, hueScale };
+}
