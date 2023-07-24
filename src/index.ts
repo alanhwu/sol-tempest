@@ -57,33 +57,32 @@ solanaWs.on('message', async (data: WebSocket.Data) => {
 });
 
 // Function that resolves promises from the queue and sends to the front-end
-const resolvePromises = async () => {
-    while (true) {
-        if (promiseQueue.length > 0) {
-            const fetchPromise = promiseQueue.shift();
-            try {
-                const fetchedBlock : solana.BlockResponse = await fetchPromise;
-                console.log('block:', fetchedBlock);
+const processQueueItem = async () => {
+    if (promiseQueue.length > 0) {
+        const fetchPromise = promiseQueue.shift();
+        try {
+            const fetchedBlock : solana.BlockResponse = await fetchPromise;
+            console.log('block:', fetchedBlock);
                 
-                // get a map of program addresses to compute units
-                const payload = await processBlock(fetchedBlock);
+            // get a map of program addresses to compute units
+            const payload = await processBlock(fetchedBlock);
                 
-                // send the JSON string to the frontend
-                wss.clients.forEach(client => {
-                    if (client.readyState === WebSocket.OPEN) {
-                        client.send(payload);
-                    }
-                });
+            // send the JSON string to the frontend
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(payload);
+                }
+            });
                 
-            } catch (error) {
-                console.error('Error fetching block data:', error);
-            }
+        } catch (error) {
+            console.error('Error fetching block data:', error);
         }
-        await new Promise(resolve => setTimeout(resolve, 300)); // Wait for 1 second
-        console.log(promiseQueue);
     }
 };
-resolvePromises();
+
+// Process a queue item every 300ms
+setInterval(processQueueItem, 300);
+
 
 wss.on('connection', (ws) => {
     console.log('Client connected');
@@ -147,8 +146,10 @@ async function processBlock(block: solana.VersionedBlockResponse) {
 
         //adding up all the compute units in the block. this will be one of the payload params.
         let totalComputeUnitsMeta = 0;
+        let highestComputeUnit = 0;
         for (const transaction of block.transactions) {
             if (transaction.meta && transaction.meta.computeUnitsConsumed) {
+                highestComputeUnit = Math.max(highestComputeUnit, transaction.meta.computeUnitsConsumed);
                 totalComputeUnitsMeta += transaction.meta.computeUnitsConsumed;
             }
         }
@@ -214,7 +215,8 @@ async function processBlock(block: solana.VersionedBlockResponse) {
             programsComputeUnits: resolvedComputeUnitsArray, // holds type of progA, progL, compU, associatedA
             addressToPrograms: addressToProgramsArray,
             informativeAccounts: informativeAccounts,
-            addressToLabelMap: Object.fromEntries(addressToLabelMap)
+            addressToLabelMap: Object.fromEntries(addressToLabelMap),
+            maxComputeUnits: highestComputeUnit
         });
 
     }
