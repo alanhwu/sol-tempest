@@ -121,7 +121,8 @@ async function processBlock(block: solana.VersionedBlockResponse) {
 
     //map from Program to CU consumed
     let computeUnitMap: Map<string, number> = new Map<string, number>();
-    let addressToProgramsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
+    let addressToProgramsMap: Map<string, Set<programWithCompute>> = new Map<string, Set<programWithCompute>>();
+
 
     //separate the formattedTransactions into two arrays based on their transaction version
     const legacyTransactions = relevantTransactions.filter(transaction => { return transaction.version === 'legacy'; });
@@ -129,7 +130,7 @@ async function processBlock(block: solana.VersionedBlockResponse) {
 
     handleLegacyTransactions(legacyTransactions, computeUnitMap, addressToProgramsMap);
     handleVersion0Transactions(version0Transactions, computeUnitMap, addressToProgramsMap);
-    
+
     let payload : any = null;
     if (computeUnitMap.size > 0) {
         // convert the map into an array of objects
@@ -168,16 +169,23 @@ async function processBlock(block: solana.VersionedBlockResponse) {
             const associatedPrograms = addressToPrograms.associatedPrograms;
 
             // Using reduce to sum compute units
-            const computeUnits = associatedPrograms.reduce((acc, programAddress) => {
-                const programInfo = resolvedComputeUnitsArray.find(p => p.programAddress === programAddress);
-                return acc + (programInfo ? programInfo.computeUnits : 0);
+            // const computeUnits = associatedPrograms.reduce((acc, programAddress) => {
+            //     const programInfo = resolvedComputeUnitsArray.find(p => p.programAddress === programAddress.programAddress);
+            //     return acc + (programInfo ? programInfo.computeUnits : 0);
+            // }, 0);
+
+            // get CU sum from addressToProgramsArray
+            const computeUnits = addressToProgramsArray[i].associatedPrograms.reduce((acc, program) => {
+                return acc + program.compute;
             }, 0);
 
+            //create a version of associatedPrograms that just has the program addresses
+            const associatedProgramsAddresses = associatedPrograms.map(program => program.programAddress);
             const currentInformativeAccount : InformativeAccount = {
                 address : address,
                 addressLabel: addressLabel(address, Cluster.MainnetBeta) || address,
                 computeUnits: +computeUnits,
-                associatedPrograms: associatedPrograms
+                associatedPrograms: associatedProgramsAddresses
             }
 
             informativeAccounts.push(currentInformativeAccount);
@@ -286,7 +294,7 @@ async function formatTransactions(transactions: any) {
 
 }
 
-function handleLegacyTransactions(legacyTransactions : any, computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<string>>) {
+function handleLegacyTransactions(legacyTransactions : any, computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>) {
     if (legacyTransactions.length == 0 || !legacyTransactions) {
         return;
     }
@@ -305,7 +313,7 @@ function handleLegacyTransactions(legacyTransactions : any, computeUnitMap: Map<
                 const currentComputeUnits = computeUnitMap.get(programAddress) || 0;
 
                 computeUnitMap.set(programAddress, currentComputeUnits + computeUnitsConsumed);
-
+                let count = 0;
                 if (payload && payload.instructions) {
                     payload.instructions.forEach(instruction => {
                         const programId = payload.accountKeys[instruction.programIdIndex];
@@ -314,9 +322,15 @@ function handleLegacyTransactions(legacyTransactions : any, computeUnitMap: Map<
                                 if (!payload.isAccountWritable(index)) {
                                     return;
                                 }
+                                count++;
                                 const address = payload.accountKeys[index].toString();
-                                const associatedPrograms = addressToProgramsMap.get(address) || new Set<string>();
-                                associatedPrograms.add(programAddress);
+                                const associatedPrograms = addressToProgramsMap.get(address) || new Set<programWithCompute>();
+                                associatedPrograms.add(
+                                    {
+                                        programAddress: programAddress,
+                                        compute: computeUnitsConsumed/count
+                                    }
+                                );
                                 addressToProgramsMap.set(address, associatedPrograms);
                             });
                         }
@@ -327,7 +341,7 @@ function handleLegacyTransactions(legacyTransactions : any, computeUnitMap: Map<
     }
 }
 
-function handleVersion0Transactions(version0Transactions: any, computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<string>>) {
+function handleVersion0Transactions(version0Transactions: any, computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>) {
     if (version0Transactions.length == 0 || !version0Transactions) {
         return;
     }
@@ -346,10 +360,9 @@ function handleVersion0Transactions(version0Transactions: any, computeUnitMap: M
                 const currentComputeUnits = computeUnitMap.get(programAddress) || 0;
 
                 computeUnitMap.set(programAddress, currentComputeUnits + computeUnitsConsumed);
-
-                if (payload && payload.compiledInstructions) {
+                let count = 0;
+                if (payload && payload.compiledInstructions) { // non-null assertion
                     payload.compiledInstructions.forEach(instruction => {
-                        //payload.resolveAddressTableLookups();
                         const accountKeys = payload.staticAccountKeys;
                         const programId = accountKeys[instruction.programIdIndex];
                         if (programId && programId.toString() === programAddress) {
@@ -357,9 +370,15 @@ function handleVersion0Transactions(version0Transactions: any, computeUnitMap: M
                                 if (!payload.isAccountWritable(index) || index >= accountKeys.length) {
                                     return;
                                 }
+                                count++;
                                 const address = accountKeys[index].toString();
-                                const associatedPrograms = addressToProgramsMap.get(address) || new Set<string>();
-                                associatedPrograms.add(programAddress);
+                                const associatedPrograms = addressToProgramsMap.get(address) || new Set<programWithCompute>();
+                                associatedPrograms.add(
+                                    {
+                                        programAddress: programAddress,
+                                        compute: computeUnitsConsumed / count
+                                    }
+                                );
                                 addressToProgramsMap.set(address, associatedPrograms);
                             });
                         }
@@ -387,3 +406,7 @@ type myTransaction = {
     version?: solana.TransactionVersion | undefined;
 };
 
+type programWithCompute = {
+    programAddress: string,
+    compute: number
+}
