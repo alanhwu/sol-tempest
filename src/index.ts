@@ -8,6 +8,8 @@ import { addressLabel } from './tx';
 import { Cluster } from './utils/cluster'; // Update with the correct path if these are custom types
 import { TokenInfoMap } from '@solana/spl-token-registry';
 
+import * as fastq from 'fastq';
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -18,7 +20,6 @@ app.use(express.static('public'));
 const url = process.env.SOLANA_RPC_URL; // Using the RPC URL from the .env file
 //ws to solana
 const solanaWs = new WebSocket('wss://' + url);
-// Send the subscription message once connected
 solanaWs.on('open', () => {
     solanaWs.send(JSON.stringify({
         "jsonrpc": "2.0",
@@ -27,78 +28,31 @@ solanaWs.on('open', () => {
     }));
 });
 
-let promiseQueue : any = [];
-
-let processingQueue :any = []; // Holds the processed payloads
-let isFetching = false;
-
-solanaWs.on('message', async (data: WebSocket.Data) => {
-    console.log('Received data from Solana:', data);
-    const blobData = await readBuffer(data);
-    //if it's just the confirmation of subscription, move on
-    if (!blobData.hasOwnProperty('params')) {
-        return;
-    }
-
-    const slot = blobData.params.result.slot;
-    console.log('slot:', slot - 10);
-
-    const fetchPromise = fetchBlockData(slot - 70);
-    promiseQueue.push(fetchPromise); // Add promise to queue
-});
-
-// Function that resolves promises from the queue and processes to processingQueue
-const processQueueItem = async () => {
-    if (!isFetching && promiseQueue.length > 0) {
-        isFetching = true;
-        const fetchPromise = promiseQueue.shift();
-        try {
-            const fetchedBlock : solana.BlockResponse = await fetchPromise;
-            console.log('block:', fetchedBlock);
-                
-            // get a map of program addresses to compute units
-            const payload = await processBlock(fetchedBlock);
-            processingQueue.push(payload); // Add the processed block to processingQueue
-                
-        } catch (error) {
-            console.error('Error fetching block data:', error);
-        } finally {
-            isFetching = false;  // Finished processing, ready for the next block
+const worker = async (fetchPromise : Promise<solana.BlockResponse | null> | null) => {
+    try {
+        const fetchedBlock : solana.BlockResponse | null = await fetchPromise;
+        console.log('block:', fetchedBlock);
+        if ( fetchedBlock == null){
+            return;
         }
-    }
-};
-
-let lastSentTime = Date.now();
-
-// Function that sends items from the processing queue to the front-end
-const sendToClients = () => {
-    if (processingQueue.length > 0 && Date.now() - lastSentTime >= 300) {
-        const payload = processingQueue.shift();
+        const payload = await processBlock(fetchedBlock);
         wss.clients.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(payload);
             }
         });
-        lastSentTime = Date.now();
+        // processingQueue.push(payload); // Add the processed block to processingQueue
+    } catch (error) {
+        console.error('Error fetching block data:', error);
     }
 };
 
+const promiseQueue = fastq.promise(worker, 1);
 
-
-setInterval(processQueueItem, 300); // Process a queue item every 300ms
-setInterval(sendToClients, 10); // Check if a processed block can be sent to the front-end every 10ms
-
-//setInterval(sendToClients, 300); // Send a processed block to the front-end every 300ms
-
-
-
-
-
-/*
 solanaWs.on('message', async (data: WebSocket.Data) => {
     console.log('Received data from Solana:', data);
     const blobData = await readBuffer(data);
-    //if it's just the confirmation of subscription, move on
+
     if (!blobData.hasOwnProperty('params')) {
         return;
     }
@@ -106,51 +60,19 @@ solanaWs.on('message', async (data: WebSocket.Data) => {
     const slot = blobData.params.result.slot;
     console.log('slot:', slot - 10);
 
-    // const block = await fetchBlockData(slot - 30);
-    // if (!block) {
-    //     console.log('block ${slot - 30} is null');
-    //     return;
-    // }
-    // const payload = await processBlock(block);
-    // console.log(`got block ${slot - 30}`);
-    // wss.clients.forEach(client => {
-    //     if (client.readyState === WebSocket.OPEN) {
-    //         client.send(payload);
-    //     }
-    // });
-    // console.log(payload);
     const fetchPromise = fetchBlockData(slot - 70);
-    promiseQueue.push(fetchPromise); // Add promise to queue
+    if (fetchPromise != null){
+        promiseQueue.push(fetchPromise); // Add promise to queue
+    }
 });
 
-// Function that resolves promises from the queue and sends to the front-end
-const processQueueItem = async () => {
-    if (promiseQueue.length > 0) {
-        const fetchPromise = promiseQueue.shift();
-        try {
-            const fetchedBlock : solana.BlockResponse = await fetchPromise;
-            console.log('block:', fetchedBlock);
-                
-            // get a map of program addresses to compute units
-            const payload = await processBlock(fetchedBlock);
-                
-            // send the JSON string to the frontend
-            wss.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(payload);
-                }
-            });
-                
-        } catch (error) {
-            console.error('Error fetching block data:', error);
-        }
-    }
+promiseQueue.drain = () => {
+    console.log('All promises have been processed');
 };
 
-// Process a queue item every 300ms
-setInterval(processQueueItem, 300);
-
-*/
+promiseQueue.empty = () => {
+    console.log('The promise queue is now empty');
+};
 
 wss.on('connection', (ws) => {
     console.log('Client connected');
@@ -236,12 +158,6 @@ async function processBlock(block: solana.VersionedBlockResponse) {
             const addressToPrograms = addressToProgramsArray[i];
             const address = addressToPrograms.address;
             const associatedPrograms = addressToPrograms.associatedPrograms;
-
-            // Using reduce to sum compute units
-            // const computeUnits = associatedPrograms.reduce((acc, programAddress) => {
-            //     const programInfo = resolvedComputeUnitsArray.find(p => p.programAddress === programAddress.programAddress);
-            //     return acc + (programInfo ? programInfo.computeUnits : 0);
-            // }, 0);
 
             // get CU sum from addressToProgramsArray
             const computeUnits = addressToProgramsArray[i].associatedPrograms.reduce((acc, program) => {
@@ -437,10 +353,6 @@ function handleLegacyTransactions(legacyTransactions: any[], computeUnitMap: Map
 function handleVersion0Transactions(version0Transactions: any[], computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>) {
     processTransactions(version0Transactions, computeUnitMap, addressToProgramsMap, "version0");
 }
-
-
-
-
 
 type InformativeAccount = {
     address: string,
