@@ -22,7 +22,6 @@ export const fetchBlockData = async (slot : number): Promise<BlockResponse | nul
         console.log(error);
         return null;
     }
-
 }
 
 export const fetchLatestBlockData = async (): Promise<BlockResponse | null> => {
