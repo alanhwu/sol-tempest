@@ -1,19 +1,7 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import { computeSha256, scaleHashToNumber, 
-    createTooltip, hideTooltip, showTooltip } from "./utils.js";    
+    createTooltip, hideTooltip, showTooltip, createScales } from "./utils.js";    
 import { config } from "./config.js";
-
-function createScales(programs) {
-    const lightnessScale = d3.scaleLinear()
-        .domain([0, d3.max(programs, d => d.computeUnits)])
-        .range([30, 60]);
-
-    const hueScale = d3.scaleLinear()
-        .domain([0, 0xffffffff])
-        .range([270, 150]);
-
-    return { lightnessScale, hueScale };
-}
 
 function drawProgram(svg, cx, cy, radius, fill, content, tooltip) {
     const circle = svg.append("circle")
@@ -25,14 +13,16 @@ function drawProgram(svg, cx, cy, radius, fill, content, tooltip) {
         .on("mouseout", () => hideTooltip(tooltip));
 
     // Pulse animation to indicate the circle was in the most recent block
+    /*
     circle.transition()
-        .duration(600)
+        .duration(100)
         .ease(d3.easeElastic)
         .attr("r", radius * 1.3)
         .transition()
-        .duration(600)
+        .duration(100)
         .ease(d3.easeElastic)
         .attr("r", radius);
+    */
 
     return circle;
 }
@@ -47,6 +37,7 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
     .on("mouseout", () => hideTooltip(tooltip));
 
     // Pulse animation to indicate the circle was in the most recent block
+    /*
     circle.transition()
         .duration(600)
         .ease(d3.easeElastic)
@@ -55,13 +46,13 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
         .duration(600)
         .ease(d3.easeElastic)
         .attr("r", radius);
-
+    */
     return circle;
 }
 
 function drawLine(linesGroup, x1, y1, x2, y2, alpha1, alpha2) {
-    console.log(`fade1: ${alpha1}, fade2: ${alpha2}`)
-    console.log(`Drawing line from (${x1}, ${y1}) to (${x2}, ${y2})`);
+    //console.log(`fade1: ${alpha1}, fade2: ${alpha2}`)
+    //console.log(`Drawing line from (${x1}, ${y1}) to (${x2}, ${y2})`);
     const opacity = 0.75 * Math.min(alpha1, alpha2);
     linesGroup.append("line")
         .attr("x1", x1)
@@ -99,7 +90,7 @@ class AccountNodev2 {
     }
 
     isFadedOut() {
-        return this.fadedness >= 1;
+        return this.fadedness >= 3;
     }
 
     updateComputeUnits(newComputeUnits) {
@@ -130,7 +121,7 @@ class AccountNodev2 {
     }
 
     get alpha() {
-        return 1 - this.fadedness;
+        return 1 - (this.fadedness/3);
     }
     
     drawBackgroundShape(svg) {
@@ -245,19 +236,20 @@ class ProgramNodev2 {
     }
 
     isFadedOut() {
-        return this.fadedness >= 1;
+        return this.fadedness >= 3;
     }
 
     get alpha() {
-        return 1 - this.fadedness;
+        return 1 - (this.fadedness/3);
     }
 
 }
 
 class Line {
-    constructor(program, account) {
+    constructor(program, account, lineKey) {
         this.program = program;
         this.account = account;
+        this.key = lineKey;
     }
 
     refresh() {
@@ -284,51 +276,71 @@ class Line {
 let accountState = {};
 let programState = {};
 let lineState  = [];
-const FADE_INCREMENT = 0.34;
+const FADE_INCREMENT = 1;
 
 export async function draw(data) {
-    const originalAddressLabelMap = new Map(Object.entries(data.addressToLabelMap));
-    console.log(originalAddressLabelMap);
+    let originalAddressLabelMap = data.addressToLabelMap || {}; // Check if data.addressToLabelMap exists, otherwise use an empty object
+    const originalAddressLabelMapEntries = Object.entries(originalAddressLabelMap);
+    originalAddressLabelMap = new Map(originalAddressLabelMapEntries);
+    //console.log(originalAddressLabelMap);
+
+    let programComputeUnitsMap = new Map();
+    data.programsComputeUnits.forEach(item => {
+        programComputeUnitsMap.set(item.programAddress, item.computeUnits);
+    });
+
+
     const svg = d3.select("#visualization");
 
     const accounts = data.informativeAccounts;
-    const { lightnessScale, hueScale } = createScales(accounts);
+    const { lightnessScale, hueScale } = createScales(data.maxComputeUnits);
     const tooltip = createTooltip();
 
     // Create opacity scale with exponent
     const opacityScale = d3.scalePow().exponent(1.58)
-        .domain([0, d3.max(accounts, d => d.computeUnits)])
+        .domain([0, data.maxComputeUnits])
         .range([0.2, 0.825])
         .clamp(true);
 
-    // Fade all nodes
-    Object.values(accountState).forEach(node => node.fade());
-    Object.values(programState).forEach(node => node.fade());
-
-    //Go through all nodes and if something has fadedness == maxFadedness, delete it
-
+    // Iterate over accounts and fade each one, remove if necessary
+    let newAccountState = {};
     Object.values(accountState).forEach(node => {
-        if (node.isFadedOut()) {
+        node.fade();
+        if (!node.isFadedOut()) {
+            newAccountState[node.address] = node;
+        } else {
             console.log("Deleting account node");
-            delete accountState[node.address];
         }
     });
-    Object.values(programState).forEach(node => {
-        if (node.isFadedOut()) {
-            console.log("Deleting program node");
-            delete programState[node.address];
-        }
-    });
+    accountState = newAccountState;
 
-    //go through lines and delete if either program or account is undefined
-    lineState.forEach(line => {
+    // Iterate over programs and fade each one, remove if necessary
+    let newProgramState = {};
+    Object.values(programState).forEach(node => {
+        node.fade();
+        if (!node.isFadedOut()) {
+            newProgramState[node.address] = node;
+        } else {
+            console.log("Deleting program node");
+        }
+    });
+    programState = newProgramState;
+
+    // Go through lines and delete if either program or account is undefined
+    lineState = lineState.filter(line => {
         if (line.checkDeath()) {
             console.log("Deleting line");
-            lineState = lineState.filter(item => item !== line);
+            return false;   // Excludes the line from the new array
         }
+        return true;        // Includes the line in the new array
     });
 
+
+
     // Add new nodes if it's not already in the state
+    if (!accounts) {
+        return;
+    }
     for (const account of accounts) {
         const address = account.address;
         const hash = await computeSha256(address);
@@ -345,13 +357,7 @@ export async function draw(data) {
                 } else {
                     const hash = await computeSha256(program);
                     //find compute units of program
-                    let computeUnits;
-                    for (const item of data.programsComputeUnits) {
-                        if (item.programAddress === program) {
-                            computeUnits = item.computeUnits;
-                            break;
-                        }
-                    }
+                    let computeUnits = programComputeUnitsMap.get(program);
                     programState[program] = new ProgramNodev2(hash, program, originalAddressLabelMap.get(program), [address], computeUnits, lightnessScale, hueScale);
                 }
             }
@@ -379,30 +385,29 @@ export async function draw(data) {
 
 
     // Get rid of bad lines
-    for (let i = 0; i < lineState.length; i++) {
-        const line = lineState[i];
-        if (line.checkDeath()) {
-            lineState.splice(i, 1);
-            i--;
-        }
-    }
+    lineState = lineState.filter(line => !line.checkDeath());
 
+    let lineKeysSet = new Set(lineState.map(line => line.key));
     // Add valid lines
     for (let program in programState) {
         const node = programState[program];
-        // const { x: x1, y: y1 } = node.position;
         for (let account of node.associatedAccounts) {
-            lineState.push(new Line(node, accountState[account]));
-            // const { x: x2, y: y2 } = accountState[account].position;
-            // drawLine(lines, x1, y1, x2, y2, node.alpha, accountState[account].alpha);
+            // Create a key that uniquely identifies this line
+            const lineKey = `${program}-${account}`;
+
+            if (!lineKeysSet.has(lineKey)) {
+                lineState.push(new Line(node, accountState[account], lineKey));
+                lineKeysSet.add(lineKey);
+            }            
         }
     }
+    console.log(lineState.length);
 
     //Draw lines
     for (let line of lineState) {
         const { x: x1, y: y1 } = line.programPosition;
         const { x: x2, y: y2 } = line.accountPosition;
-        console.log(`drawing with alpha ${line.program.alpha} and ${line.account.alpha}`);
+        // console.log(`drawing with alpha ${line.program.alpha} and ${line.account.alpha}`);
         drawLine(lines, x1, y1, x2, y2, line.program.alpha, line.account.alpha);
     }
 
@@ -429,6 +434,5 @@ export async function draw(data) {
     //Remove all but the last tooltip
     d3.selectAll(".tooltip")
     .filter((d, i, nodes) => i < nodes.length - 1)
-    .remove();
-  
+    .remove(); 
 }

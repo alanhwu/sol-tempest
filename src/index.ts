@@ -2,7 +2,7 @@ import express from 'express';
 import WebSocket, { Server as WebSocketServer } from 'ws';
 import http from 'http';
 import { fetchBlockData } from './solana';
-import { BlockResponse, PublicKey, Transaction } from '@solana/web3.js';
+import * as solana from '@solana/web3.js';
 
 import { addressLabel } from './tx';
 import { Cluster } from './utils/cluster'; // Update with the correct path if these are custom types
@@ -24,17 +24,80 @@ solanaWs.on('open', () => {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "slotSubscribe",
-        //"method": "blockSubscribe",
-        //"params": ["all"]
     }));
 });
 
 let promiseQueue : any = [];
+
+let processingQueue :any = []; // Holds the processed payloads
+let isFetching = false;
+
 solanaWs.on('message', async (data: WebSocket.Data) => {
     console.log('Received data from Solana:', data);
-
     const blobData = await readBuffer(data);
-    //console.log(blobData);
+    //if it's just the confirmation of subscription, move on
+    if (!blobData.hasOwnProperty('params')) {
+        return;
+    }
+
+    const slot = blobData.params.result.slot;
+    console.log('slot:', slot - 10);
+
+    const fetchPromise = fetchBlockData(slot - 70);
+    promiseQueue.push(fetchPromise); // Add promise to queue
+});
+
+// Function that resolves promises from the queue and processes to processingQueue
+const processQueueItem = async () => {
+    if (!isFetching && promiseQueue.length > 0) {
+        isFetching = true;
+        const fetchPromise = promiseQueue.shift();
+        try {
+            const fetchedBlock : solana.BlockResponse = await fetchPromise;
+            console.log('block:', fetchedBlock);
+                
+            // get a map of program addresses to compute units
+            const payload = await processBlock(fetchedBlock);
+            processingQueue.push(payload); // Add the processed block to processingQueue
+                
+        } catch (error) {
+            console.error('Error fetching block data:', error);
+        } finally {
+            isFetching = false;  // Finished processing, ready for the next block
+        }
+    }
+};
+
+let lastSentTime = Date.now();
+
+// Function that sends items from the processing queue to the front-end
+const sendToClients = () => {
+    if (processingQueue.length > 0 && Date.now() - lastSentTime >= 300) {
+        const payload = processingQueue.shift();
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(payload);
+            }
+        });
+        lastSentTime = Date.now();
+    }
+};
+
+
+
+setInterval(processQueueItem, 300); // Process a queue item every 300ms
+setInterval(sendToClients, 10); // Check if a processed block can be sent to the front-end every 10ms
+
+//setInterval(sendToClients, 300); // Send a processed block to the front-end every 300ms
+
+
+
+
+
+/*
+solanaWs.on('message', async (data: WebSocket.Data) => {
+    console.log('Received data from Solana:', data);
+    const blobData = await readBuffer(data);
     //if it's just the confirmation of subscription, move on
     if (!blobData.hasOwnProperty('params')) {
         return;
@@ -61,33 +124,33 @@ solanaWs.on('message', async (data: WebSocket.Data) => {
 });
 
 // Function that resolves promises from the queue and sends to the front-end
-const resolvePromises = async () => {
-    while (true) {
-        if (promiseQueue.length > 0) {
-            const fetchPromise = promiseQueue.shift();
-            try {
-                const fetchedBlock : BlockResponse = await fetchPromise;
-                console.log('block:', fetchedBlock);
+const processQueueItem = async () => {
+    if (promiseQueue.length > 0) {
+        const fetchPromise = promiseQueue.shift();
+        try {
+            const fetchedBlock : solana.BlockResponse = await fetchPromise;
+            console.log('block:', fetchedBlock);
                 
-                // get a map of program addresses to compute units
-                const payload = await processBlock(fetchedBlock);
+            // get a map of program addresses to compute units
+            const payload = await processBlock(fetchedBlock);
                 
-                // send the JSON string to the frontend
-                wss.clients.forEach(client => {
-                    if (client.readyState === WebSocket.OPEN) {
-                        client.send(payload);
-                    }
-                });
+            // send the JSON string to the frontend
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(payload);
+                }
+            });
                 
-            } catch (error) {
-                console.error('Error fetching block data:', error);
-            }
+        } catch (error) {
+            console.error('Error fetching block data:', error);
         }
-        await new Promise(resolve => setTimeout(resolve, 300)); // Wait for 1 second
-        console.log(promiseQueue);
     }
 };
-resolvePromises();
+
+// Process a queue item every 300ms
+setInterval(processQueueItem, 300);
+
+*/
 
 wss.on('connection', (ws) => {
     console.log('Client connected');
@@ -107,7 +170,7 @@ async function readBuffer(buffer: any) {
     }
 }
 
-async function processBlock(block: BlockResponse) {
+async function processBlock(block: solana.VersionedBlockResponse) {
     if (!block || !block.transactions || block.transactions.length === 0) {
         return null;
     }
@@ -118,48 +181,22 @@ async function processBlock(block: BlockResponse) {
         && transaction.meta.computeUnitsConsumed 
         && transaction.meta.computeUnitsConsumed > 0;
     }); // both legacy and version 0 transactions have this field
-
     console.log(relevantTransactions);
 
+    //const formattedTransactions = await formatTransactions(relevantTransactions);
+    //this returns us a map of address to InformativeAccount object
+
+    //map from Program to CU consumed
     let computeUnitMap: Map<string, number> = new Map<string, number>();
-    let addressToProgramsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
+    let addressToProgramsMap: Map<string, Set<programWithCompute>> = new Map<string, Set<programWithCompute>>();
 
-    if (relevantTransactions.length > 0) {
-        for (const transaction of relevantTransactions) {
-            if (transaction.meta && transaction.meta.logMessages) {
-                const logMessages = transaction.meta.logMessages;
-                const { message } = transaction.transaction; //this is the part that differes between legacy and version 0 transactions
-                
-                for (const logMessage of logMessages) {
-                    // regex to parse the log message
-                    const match = logMessage.match(/Program (\S+) consumed (\d+) of \d+ compute units/);
-                    
-                    // if logMessage has expected format, update map
-                    if (match) {
-                        const programAddress = match[1];
-                        const computeUnitsConsumed = parseInt(match[2], 10);
-                        const currentComputeUnits = computeUnitMap.get(programAddress) || 0;
 
-                        computeUnitMap.set(programAddress, currentComputeUnits + computeUnitsConsumed);
+    //separate the formattedTransactions into two arrays based on their transaction version
+    const legacyTransactions = relevantTransactions.filter(transaction => { return transaction.version === 'legacy'; });
+    const version0Transactions = relevantTransactions.filter(transaction => { return transaction.version === 0; });
 
-                        if (message && message.instructions) {
-                            message.instructions.forEach(instruction => {
-                                const programId = message.accountKeys[instruction.programIdIndex];
-                                if (programId && programId.toString() === programAddress) {
-                                    instruction.accounts.forEach(index => {
-                                        const address = message.accountKeys[index].toString();
-                                        const associatedPrograms = addressToProgramsMap.get(address) || new Set<string>();
-                                        associatedPrograms.add(programAddress);
-                                        addressToProgramsMap.set(address, associatedPrograms);
-                                    });
-                                }
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
+    handleLegacyTransactions(legacyTransactions, computeUnitMap, addressToProgramsMap);
+    handleVersion0Transactions(version0Transactions, computeUnitMap, addressToProgramsMap);
 
     let payload : any = null;
     if (computeUnitMap.size > 0) {
@@ -169,14 +206,18 @@ async function processBlock(block: BlockResponse) {
                 programAddress,
                 programLabel: addressLabel(programAddress, Cluster.MainnetBeta) || programAddress,
                 computeUnits,
-                associatedAddresses: await findAssociatedAddresses(programAddress, relevantTransactions)
+                associatedAddresses: await findAssociatedAddresses(programAddress, relevantTransactions),
+                computePerAddress : computeUnits / (await findAssociatedAddresses(programAddress, relevantTransactions)).length
             };
         });
         const resolvedComputeUnitsArray = await Promise.all(computeUnitsArray);
 
+        //adding up all the compute units in the block. this will be one of the payload params.
         let totalComputeUnitsMeta = 0;
+        let highestComputeUnit = 0;
         for (const transaction of block.transactions) {
             if (transaction.meta && transaction.meta.computeUnitsConsumed) {
+                highestComputeUnit = Math.max(highestComputeUnit, transaction.meta.computeUnitsConsumed);
                 totalComputeUnitsMeta += transaction.meta.computeUnitsConsumed;
             }
         }
@@ -197,16 +238,23 @@ async function processBlock(block: BlockResponse) {
             const associatedPrograms = addressToPrograms.associatedPrograms;
 
             // Using reduce to sum compute units
-            const computeUnits = associatedPrograms.reduce((acc, programAddress) => {
-                const programInfo = resolvedComputeUnitsArray.find(p => p.programAddress === programAddress);
-                return acc + (programInfo ? programInfo.computeUnits : 0);
+            // const computeUnits = associatedPrograms.reduce((acc, programAddress) => {
+            //     const programInfo = resolvedComputeUnitsArray.find(p => p.programAddress === programAddress.programAddress);
+            //     return acc + (programInfo ? programInfo.computeUnits : 0);
+            // }, 0);
+
+            // get CU sum from addressToProgramsArray
+            const computeUnits = addressToProgramsArray[i].associatedPrograms.reduce((acc, program) => {
+                return acc + program.compute;
             }, 0);
 
+            //create a version of associatedPrograms that just has the program addresses
+            const associatedProgramsAddresses = associatedPrograms.map(program => program.programAddress);
             const currentInformativeAccount : InformativeAccount = {
                 address : address,
                 addressLabel: addressLabel(address, Cluster.MainnetBeta) || address,
                 computeUnits: +computeUnits,
-                associatedPrograms: associatedPrograms
+                associatedPrograms: associatedProgramsAddresses
             }
 
             informativeAccounts.push(currentInformativeAccount);
@@ -220,6 +268,7 @@ async function processBlock(block: BlockResponse) {
             informativeAccounts = informativeAccounts.slice(0, config.topAccountsCount);
         }
 
+        // Create a map of address to label
         let addressToLabelMap : Map<string, string> = new Map<string, string>();
         for (const obj of resolvedComputeUnitsArray) {
             addressToLabelMap.set(obj.programAddress, obj.programLabel);
@@ -231,10 +280,11 @@ async function processBlock(block: BlockResponse) {
         payload = JSON.stringify({
             slot: block.parentSlot + 1,
             computeUnitsMeta: totalComputeUnitsMeta,
-            programsComputeUnits: resolvedComputeUnitsArray,
+            programsComputeUnits: resolvedComputeUnitsArray, // holds type of progA, progL, compU, associatedA
             addressToPrograms: addressToProgramsArray,
             informativeAccounts: informativeAccounts,
-            addressToLabelMap: Object.fromEntries(addressToLabelMap)
+            addressToLabelMap: Object.fromEntries(addressToLabelMap),
+            maxComputeUnits: highestComputeUnit
         });
 
     }
@@ -266,10 +316,167 @@ async function findAssociatedAddresses(programAddress : string, targetTransactio
     return Array.from(new Set(associatedAddresses));
 }
 
+async function formatTransactions(transactions: any) {
+    let parsedAccounts : Map<string, InformativeAccount> = new Map<string, InformativeAccount>();
+    for (let i = 0; i < transactions.length; i++) {
+        delete transactions[i].meta.postBalances;
+        delete transactions[i].meta.postTokenBalances;
+        delete transactions[i].meta.preBalances;
+        delete transactions[i].meta.preTokenBalances;
+        delete transactions[i].meta.rewards;
+
+        const message = transactions[i].transaction.message;
+        const instructs = message.compiledInstructions;
+        if (instructs) {
+            for (let j = 0; j < instructs.length; j++) {
+                const programIndex = instructs[j].programIdIndex;
+                if (!instructs[j].accounts.length || instructs[j].accounts.length === 0) {
+                    continue;
+                }
+                for (let k = 0; k < instructs[j].accounts.length; k++) {
+                    const index = instructs[j].accounts[k];
+                    if (!message.isAccountWritable(index)){
+                        continue;
+                    } else {
+                        const address = message.staticAccountKeys[index].toStringTag();
+                        const programAddress = message.indexToProgramIds[programIndex].toStringTag();
+                        //grab InformativeAccount object from map if it exists
+                        let currentInformativeAccount = parsedAccounts.get(address);
+                        // if it doesn't exist, create it. otherwise, we will override the object
+                        if (!currentInformativeAccount) {
+                            currentInformativeAccount = {
+                                address : address,
+                                addressLabel: addressLabel(address, Cluster.MainnetBeta) || address,
+                                computeUnits: -1,
+                                associatedPrograms: [programAddress]
+                            }
+                            parsedAccounts.set(address, currentInformativeAccount);
+                        } else {
+                            currentInformativeAccount.associatedPrograms.push(programAddress);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return parsedAccounts;
+
+}
+
+function handleLegacyTransactions(legacyTransactions : any, computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>) {
+    if (legacyTransactions.length == 0 || !legacyTransactions) {
+        return;
+    }
+    for (const transaction of legacyTransactions){
+        const payload: solana.Message = transaction.transaction.message;
+        const meta: solana.ConfirmedTransactionMeta = transaction.meta as solana.ConfirmedTransactionMeta ?? {};
+        const logMessages = meta.logMessages;
+        if (!logMessages) {
+            continue;
+        }
+        for (const logMessage of logMessages) {
+            const match = logMessage.match(/Program (\S+) consumed (\d+) of \d+ compute units/);
+            if (match) {
+                const programAddress = match[1];
+                const computeUnitsConsumed = parseInt(match[2], 10);
+                const currentComputeUnits = computeUnitMap.get(programAddress) || 0;
+
+                computeUnitMap.set(programAddress, currentComputeUnits + computeUnitsConsumed);
+                let count = 0;
+                if (payload && payload.instructions) {
+                    payload.instructions.forEach(instruction => {
+                        const programId = payload.accountKeys[instruction.programIdIndex];
+                        if (programId && programId.toString() === programAddress) {
+                            instruction.accounts.forEach(index => {
+                                if (!payload.isAccountWritable(index)) {
+                                    return;
+                                }
+                                count++;
+                                const address = payload.accountKeys[index].toString();
+                                const associatedPrograms = addressToProgramsMap.get(address) || new Set<programWithCompute>();
+                                associatedPrograms.add(
+                                    {
+                                        programAddress: programAddress,
+                                        compute: Math.floor(computeUnitsConsumed / count)
+                                    }
+                                );
+                                addressToProgramsMap.set(address, associatedPrograms);
+                            });
+                        }
+                    });
+                }
+            }
+        }
+    }
+}
+
+function handleVersion0Transactions(version0Transactions: any, computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>) {
+    if (version0Transactions.length == 0 || !version0Transactions) {
+        return;
+    }
+    for (const transaction of version0Transactions){
+        const payload: solana.MessageV0 = transaction.transaction.message;
+        const meta: solana.ConfirmedTransactionMeta = transaction.meta as solana.ConfirmedTransactionMeta ?? {};
+        const logMessages = meta.logMessages;
+        if (!logMessages) {
+            continue;
+        }
+        for (const logMessage of logMessages) {
+            const match = logMessage.match(/Program (\S+) consumed (\d+) of \d+ compute units/);
+            if (match) {
+                const programAddress = match[1];
+                const computeUnitsConsumed = parseInt(match[2], 10);
+                const currentComputeUnits = computeUnitMap.get(programAddress) || 0;
+
+                computeUnitMap.set(programAddress, currentComputeUnits + computeUnitsConsumed);
+                let count = 0;
+                if (payload && payload.compiledInstructions) { // non-null assertion
+                    payload.compiledInstructions.forEach(instruction => {
+                        const accountKeys = payload.staticAccountKeys;
+                        const programId = accountKeys[instruction.programIdIndex];
+                        if (programId && programId.toString() === programAddress) {
+                            instruction.accountKeyIndexes.forEach(index => {
+                                if (!payload.isAccountWritable(index) || index >= accountKeys.length) {
+                                    return;
+                                }
+                                count++;
+                                const address = accountKeys[index].toString();
+                                const associatedPrograms = addressToProgramsMap.get(address) || new Set<programWithCompute>();
+                                associatedPrograms.add(
+                                    {
+                                        programAddress: programAddress,
+                                        compute: Math.floor(computeUnitsConsumed / count)
+                                    }
+                                );
+                                addressToProgramsMap.set(address, associatedPrograms);
+                            });
+                        }
+                    });
+                }
+            }
+        }
+    }
+}
+
 
 type InformativeAccount = {
     address: string,
     addressLabel: string,
     associatedPrograms: string[],
     computeUnits: number
+}
+
+type myTransaction = {
+    transaction: {
+        message: solana.VersionedMessage;
+        signatures: string[];
+    };
+    meta: solana.ConfirmedTransactionMeta | null;
+    version?: solana.TransactionVersion | undefined;
+};
+
+type programWithCompute = {
+    programAddress: string,
+    compute: number
 }
