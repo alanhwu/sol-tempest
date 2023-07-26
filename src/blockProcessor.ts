@@ -7,6 +7,8 @@ export async function processBlock(block: VersionedBlockResponse) {
     //map from Program to CU consumed
     let computeUnitMap: Map<string, number> = new Map<string, number>();
     let addressToProgramsMap: Map<string, Set<programWithCompute>> = new Map<string, Set<programWithCompute>>();
+
+    let accountAddressToComputeMap: Map<string, number> = new Map<string, number>();
     
     const relevantTransactions: myTransaction[] = [];
     const legacyTransactions: myTransaction[] = [];
@@ -95,15 +97,14 @@ export async function processBlock(block: VersionedBlockResponse) {
 
     payload = JSON.stringify({
         slot: block.parentSlot + 1,
-        computeUnitsMeta: totalComputeUnitsMeta,
+        //computeUnitsMeta: totalComputeUnitsMeta,
         programsComputeUnits: resolvedComputeUnitsArray, // holds type of progA, progL, compU, associatedA
-        addressToPrograms: addressToProgramsArray,
+        //addressToPrograms: addressToProgramsArray,
         informativeAccounts: informativeAccounts,
         addressToLabelMap: Object.fromEntries(addressToLabelMap),
         maxComputeUnits: highestComputeUnit
     });
 
-    
     return payload;
 }
 
@@ -130,24 +131,12 @@ export async function findAssociatedAddresses(programAddress : string, targetTra
     // Remove dupes
     return Array.from(new Set(associatedAddresses));
 }
-export function processLegacyAccounts(instruction: any, accountKeys: any, programAddress: string, computeUnitsConsumed: number, addressToProgramsMap: Map<string, Set<programWithCompute>>, payload: any) {
-    let count = 0;
-    instruction.accounts.forEach((index: any) => {
-        if (!payload.isAccountWritable(index)) return;
-        count++;
-        const address = accountKeys[index].toString();
-        const associatedPrograms = addressToProgramsMap.get(address) || new Set<programWithCompute>();
-        associatedPrograms.add({
-            programAddress,
-            compute: Math.floor(computeUnitsConsumed / count)
-        });
-        addressToProgramsMap.set(address, associatedPrograms);
-    });
-}
 
-export function processVersion0Accounts(instruction: any, accountKeys: any, programAddress: string, computeUnitsConsumed: number, addressToProgramsMap: Map<string, Set<programWithCompute>>, payload: any) {
+
+
+export function processAccounts(accountIndices: any[], accountKeys: any, programAddress: string, computeUnitsConsumed: number, addressToProgramsMap: Map<string, Set<programWithCompute>>, payload: any) {
     let count = 0;
-    instruction.accountKeyIndexes.forEach((index: any) => {
+    accountIndices.forEach((index: any) => {
         if (!payload.isAccountWritable(index) || index >= accountKeys.length) return;
         count++;
         const address = accountKeys[index].toString();
@@ -184,11 +173,8 @@ export function processTransactions(transactions: any[], computeUnitMap: Map<str
 
             if (instructions) {
                 instructions.forEach((instruction: any) => {
-                    if (transactionType === "legacy") {
-                        processLegacyAccounts(instruction, accountKeys, programAddress, computeUnitsConsumed, addressToProgramsMap, payload);
-                    } else {
-                        processVersion0Accounts(instruction, accountKeys, programAddress, computeUnitsConsumed, addressToProgramsMap, payload);
-                    }
+                    const accountIndices = transactionType === "legacy" ? instruction.accounts : instruction.accountKeyIndexes;
+                    processAccounts(accountIndices, accountKeys, programAddress, computeUnitsConsumed, addressToProgramsMap, payload);
                 });
             }
         }
