@@ -26,7 +26,10 @@ websocket.onmessage = async (event) => {
         processQueue();
         started = true;
     }
-    
+};
+
+websocket.onerror = (error) => {
+    console.error('WebSocket Error:', error);
 };
 
 async function processQueue() {

@@ -3,7 +3,6 @@ import WebSocket, { Server as WebSocketServer } from 'ws';
 import http from 'http';
 import { fetchBlockData } from './solana';
 import * as solana from '@solana/web3.js';
-import { TokenInfoMap } from '@solana/spl-token-registry';
 import * as fastq from 'fastq';
 import { processBlock } from './blockProcessor';
 
@@ -14,65 +13,88 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static('public'));
 
-const url = process.env.SOLANA_RPC_URL; // Using the RPC URL from the .env file
-//ws to solana
-const solanaWs = new WebSocket('wss://' + url);
-solanaWs.on('open', () => {
-    solanaWs.send(JSON.stringify({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "slotSubscribe",
-    }));
-});
+const url = process.env.SOLANA_RPC_URL;
+if (url == undefined) {
+    throw new Error('SOLANA_RPC_URL is undefined');
+}
+const solanaConnection = new solana.Connection('https://' + url);
 
-const worker = async (fetchPromise : Promise<solana.BlockResponse | null> | null) => {
+// const solanaWs = new WebSocket('wss://' + url);
+
+// solanaWs.on('open', () => {
+//     solanaWs.send(JSON.stringify({
+//         "jsonrpc": "2.0",
+//         "id": 1,
+//         "method": "slotSubscribe",
+//     }));
+// });
+
+const worker = async (slot: number) => {
     try {
-        const fetchedBlock : solana.BlockResponse | null = await fetchPromise;
+        //console.log(`promise queue size: ${promiseQueue.length()}`);
+        console.log('Fetching block data');
+        const fetchedBlock = await fetchBlockData(slot);
         console.log('block:', fetchedBlock);
-        if ( fetchedBlock == null){
+        if (fetchedBlock == null){
+            return;
+        }
+        console.log('Processing block data');
+        if (!fetchedBlock.transactions || fetchedBlock.transactions.length === 0) {
             return;
         }
         const payload = await processBlock(fetchedBlock);
         wss.clients.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(payload);
+                console.log('Sent data to client');
             }
         });
-        // processingQueue.push(payload); // Add the processed block to processingQueue
     } catch (error) {
-        console.error('Error fetching block data:', error);
+        console.error('Error processing block data:', error);
     }
 };
 
 const promiseQueue = fastq.promise(worker, 1);
 
-solanaWs.on('message', async (data: WebSocket.Data) => {
-    console.log('Received data from Solana:', data);
-    const blobData = await readBuffer(data);
+let slot = -1;
+(async function getInitialSlot() {
+    slot = await solanaConnection.getSlot() - 70;
+    console.log(`the current slot is ${slot}`);
+})();
 
-    if (!blobData.hasOwnProperty('params')) {
-        return;
-    }
+const interval = setInterval(() => {
+    promiseQueue.push(slot);
+    slot++;
+}, 400);
 
-    const slot = blobData.params.result.slot;
-    console.log('slot:', slot - 10);
 
-    const fetchPromise = fetchBlockData(slot - 70);
-    if (fetchPromise != null){
-        promiseQueue.push(fetchPromise); // Add promise to queue
-    }
-});
+// solanaWs.on('message', async (data: WebSocket.Data) => {
+//     console.log('Received data from Solana:', data);
+//     const blobData = await readBuffer(data);
+
+//     if (!blobData.hasOwnProperty('params')) {
+//         return;
+//     }
+
+//     const slot = blobData.params.result.slot - 70;
+//     console.log('slot:', slot);
+
+//     promiseQueue.push(slot);
+// });
 
 promiseQueue.drain = () => {
-    console.log('All promises have been processed');
+    console.log('All block data have been processed');
 };
 
 promiseQueue.empty = () => {
-    console.log('The promise queue is now empty');
+    console.log('The block data processing queue is now empty');
 };
 
 wss.on('connection', (ws) => {
     console.log('Client connected');
+    ws.on('error', (error) => {
+        console.error('Client WebSocket Error:', error);
+    });
 });
 
 server.listen(PORT, () => {
