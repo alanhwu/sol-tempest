@@ -9,14 +9,13 @@ export async function processBlock(block: VersionedBlockResponse) {
     let addressToProgramsMap: Map<string, Set<programWithCompute>> = new Map<string, Set<programWithCompute>>();
 
     let accountAddressToComputeMap: Map<string, number> = new Map<string, number>();
-    
-    const relevantTransactions: myTransaction[] = [];
-    const legacyTransactions: myTransaction[] = [];
-    const version0Transactions: myTransaction[] = [];
 
-    sortTransactions(block.transactions, relevantTransactions, legacyTransactions, version0Transactions);
-    handleLegacyTransactions(legacyTransactions, computeUnitMap, addressToProgramsMap);
-    handleVersion0Transactions(version0Transactions, computeUnitMap, addressToProgramsMap);
+    const relevantTransactions = block.transactions.filter((transaction) => 
+        transaction.meta &&
+        transaction.meta.computeUnitsConsumed &&
+        transaction.meta.computeUnitsConsumed > 0
+    );
+    processTransactions(relevantTransactions, computeUnitMap, addressToProgramsMap);
 
     let payload : any = null;
     if (computeUnitMap.size == 0) {
@@ -149,11 +148,13 @@ export function processAccounts(accountIndices: any[], accountKeys: any, program
     });
 }
 
-export function processTransactions(transactions: any[], computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>, transactionType: TransactionType) {
+export function processTransactions(transactions: any[], computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>) {
     if (!transactions || transactions.length === 0) {
         return;
     }
+    
     for (const transaction of transactions) {
+        const transactionType : TransactionType = transaction.version;
         const payload = transaction.transaction.message;
         const meta: ConfirmedTransactionMeta = transaction.meta as ConfirmedTransactionMeta ?? {};
         const logMessages = meta.logMessages;
@@ -170,7 +171,6 @@ export function processTransactions(transactions: any[], computeUnitMap: Map<str
 
             const instructions = transactionType === "legacy" ? payload.instructions : payload.compiledInstructions;
             const accountKeys = transactionType === "legacy" ? payload.accountKeys : payload.staticAccountKeys;
-
             if (instructions) {
                 instructions.forEach((instruction: any) => {
                     const accountIndices = transactionType === "legacy" ? instruction.accounts : instruction.accountKeyIndexes;
@@ -180,41 +180,6 @@ export function processTransactions(transactions: any[], computeUnitMap: Map<str
         }
     }
 }
-
-
-export function handleLegacyTransactions(legacyTransactions: any[], computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>) {
-    processTransactions(legacyTransactions, computeUnitMap, addressToProgramsMap, "legacy");
-}
-
-export function handleVersion0Transactions(version0Transactions: any[], computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<programWithCompute>>) {
-    processTransactions(version0Transactions, computeUnitMap, addressToProgramsMap, "version0");
-}
-
-function sortTransactions(
-    transactions: myTransaction[],
-    relevantTransactions: myTransaction[],
-    legacyTransactions: myTransaction[],
-    version0Transactions: myTransaction[]
-) {
-    transactions.forEach((transaction: myTransaction) => {
-        if (
-            transaction.meta &&
-            transaction.meta.computeUnitsConsumed &&
-            transaction.meta.computeUnitsConsumed > 0
-        ) {
-            relevantTransactions.push(transaction);
-            switch (transaction.version) {
-                case 'legacy':
-                    legacyTransactions.push(transaction);
-                    break;
-                case 0:
-                    version0Transactions.push(transaction);
-                    break;
-            }
-        }
-    });
-}
-
 
 type TransactionType = "legacy" | "version0";
 type InformativeAccount = {

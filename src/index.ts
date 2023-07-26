@@ -19,16 +19,6 @@ if (url == undefined) {
 }
 const solanaConnection = new solana.Connection('https://' + url);
 
-// const solanaWs = new WebSocket('wss://' + url);
-
-// solanaWs.on('open', () => {
-//     solanaWs.send(JSON.stringify({
-//         "jsonrpc": "2.0",
-//         "id": 1,
-//         "method": "slotSubscribe",
-//     }));
-// });
-
 const worker = async (slot: number) => {
     try {
         //console.log(`promise queue size: ${promiseQueue.length()}`);
