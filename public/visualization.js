@@ -167,9 +167,6 @@ class AccountNodev2 {
             .attr("r", size)
             .attr("fill", `url(#${gradientId})`);
     }
-    
-    
-    
 }
 
 class ProgramNodev2 {
@@ -285,6 +282,13 @@ export async function draw(data) {
     //console.log(originalAddressLabelMap);
 
     let programComputeUnitsMap = new Map();
+
+    //data must be an object with the following properties:
+    //informativeAccounts: array of account objects
+    //maxComputeUnits: number
+    //addressToLabelMap: map
+    //programsComputeUnits: array of objects with programAddress and computeUnits properties
+    
     data.programsComputeUnits.forEach(item => {
         programComputeUnitsMap.set(item.programAddress, item.computeUnits);
     });
@@ -334,8 +338,6 @@ export async function draw(data) {
         }
         return true;        // Includes the line in the new array
     });
-
-
 
     // Add new nodes if it's not already in the state
     if (!accounts) {
