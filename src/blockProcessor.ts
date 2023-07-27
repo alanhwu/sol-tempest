@@ -63,6 +63,8 @@ export async function processBlock(block: VersionedBlockResponse) {
     }
 
     const highestComputeUnit = Math.max(...Array.from(accountAddressToComputeMap.values()));
+    //sort informativeAccounts by computeUnits highest to lowest
+    informativeAccounts.sort((a, b) => b.computeUnits - a.computeUnits);
 
     //payload must be an object with the following properties:
     //informativeAccounts: array of account objects

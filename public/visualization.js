@@ -15,7 +15,7 @@ data must be an object with the following properties:
     programsComputeUnits: array of objects with programAddress and computeUnits properties
 */
 
-export async function draw(data) {
+export async function draw(data, maxAccounts, animationBool) {
     let originalAddressLabelMap = data.addressToLabelMap || {}; // Check if data.addressToLabelMap exists, otherwise use an empty object
     const originalAddressLabelMapEntries = Object.entries(originalAddressLabelMap);
     originalAddressLabelMap = new Map(originalAddressLabelMapEntries);
@@ -29,7 +29,7 @@ export async function draw(data) {
     const svg = d3.select("#visualization");
 
     // Primary data structure
-    const accounts = data.informativeAccounts;
+    const accounts = data.informativeAccounts.slice(0, maxAccounts);
 
     const { lightnessScale, hueScale } = createScales(data.maxComputeUnits);
     const tooltip = createTooltip();
@@ -145,14 +145,14 @@ export async function draw(data) {
     Object.values(accountState).forEach(node => {
         const { x, y } = node.position;
         const latest = node.fadedness == 0;
-        drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip, latest);
+        drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip, latest, animationBool);
         node.drawBackgroundShape(svg);
     });
 
     Object.values(programState).forEach(node => {
         const { x, y } = node.position;
         const latest = node.fadedness == 0;
-        drawProgram(svg, x, y, 6, node.fill, node.tooltipContent, tooltip, latest);
+        drawProgram(svg, x, y, 6, node.fill, node.tooltipContent, tooltip, latest, animationBool);
     });
 
     removeStrayTooltips();
@@ -164,7 +164,7 @@ let duration = 400;
 let easing = d3.easeCubic;
 let scaleIncrease = 1.5;
 
-function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest) {
+function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest, animationBool) {
     const circle = svg.append("circle")
         .attr("cx", cx)
         .attr("cy", cy)
@@ -174,7 +174,7 @@ function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest) {
         .on("mouseout", () => hideTooltip(tooltip));
 
     // Pulse animation to indicate the circle was in the most recent block
-    if (latest) {
+    if (animationBool && latest) {
         circle.transition()
         .delay(delay)
         .duration(duration)
@@ -189,7 +189,7 @@ function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest) {
     return circle;
 }
 
-function drawAccount(svg, cx, cy, radius, fill, content, tooltip, latest) {
+function drawAccount(svg, cx, cy, radius, fill, content, tooltip, latest, animationBool) {
     const circle = svg.append("circle")
     .attr("cx", cx)
     .attr("cy", cy)
@@ -199,7 +199,7 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip, latest) {
     .on("mouseout", () => hideTooltip(tooltip));
 
     // Pulse animation to indicate the circle was in the most recent block
-    if (latest) {
+    if (animationBool && latest) {
         circle.transition()
         .delay(delay)
         .duration(duration)
