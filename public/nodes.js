@@ -5,6 +5,7 @@ import { config } from "./config.js";
 
 const FADE_INCREMENT = 1;
 const coordinateOffset = 42;
+const MAX_FADE = 3;
 
 class BaseNode {
     constructor(hash, address, addressLabel, computeUnits) {
@@ -16,6 +17,10 @@ class BaseNode {
         this.fadedness = 0;
     }
 
+    updateComputeUnits(newComputeUnits) {
+        this.computeUnits = newComputeUnits;
+    }
+
     fade() {
         this.fadedness += FADE_INCREMENT;
     }
@@ -25,11 +30,11 @@ class BaseNode {
     }
 
     isFadedOut() {
-        return this.fadedness >= 3;
+        return this.fadedness >= MAX_FADE;
     }
 
     get alpha() {
-        return 1 - (this.fadedness/3);
+        return 1 - (this.fadedness/MAX_FADE);
     }
 
     get position() {
@@ -51,17 +56,13 @@ export class AccountNodev2 extends BaseNode {
         this.hueScale = hueScale;
         this.opacityScale = opacityScale;
         // this.fadedness = 0;
-        this.hue = "#999999"
+        this.hue = 0
         // this.lightness = lightnessScale(this.computeUnits);
         this.lightness = 50;
     }
 
-    updateComputeUnits(newComputeUnits) {
-        this.computeUnits = newComputeUnits;
-    }
-
     get fill() {
-        return `hsla(${this.hue}, 100%, ${this.lightness}%, ${1 - this.fadedness})`;
+        return `hsla(${this.hue}, 0%, ${this.lightness}%, ${this.alpha})`;
     }
 
     get tooltipContent() {
@@ -128,7 +129,7 @@ export class ProgramNodev2 extends BaseNode {
         // this.lightnessScale = lightnessScale;
         this.hueScale = hueScale;
         this.opacityScale = opacityScale;
-        this.referenceCount = associatedAccounts.size;
+        // this.referenceCount = associatedAccounts.size;
         this.hue = this.calculateHue(this.hash);
         // this.lightness = lightnessScale(this.computeUnits);
         this.lightness = 50;
@@ -151,8 +152,11 @@ export class ProgramNodev2 extends BaseNode {
     }
 
     get fill() {
+        
         const opacity = this.alpha * 0.4 + 0.6;
-        return `hsla(${this.hue}, 100%, 50%, ${opacity})`;
+
+        //replacing opacity with alpha for now
+        return `hsla(${this.hue}, 100%, 50%, ${this.alpha})`;
     }
 
     calculateHue(hash) {
@@ -168,14 +172,16 @@ export class ProgramNodev2 extends BaseNode {
 
 
 export class Line {
-    constructor(program, account, lineKey) {
+    constructor(program, account, lineKey, programState, accountState) {
         this.program = program;
         this.account = account;
         this.key = lineKey;
+        this.programState = programState;
+        this.accountState = accountState;
     }
 
     refresh() {
-        this.fadedness = Math.min(program.alpha, account.alpha);
+        this.fadedness = Math.min(this.program.fadedness, this.account.fadedness);
     }
 
     get programPosition() {
@@ -187,7 +193,7 @@ export class Line {
     }
 
     checkDeath() {
-        if (!this.program.alpha || !this.account.alpha) {
+        if (!this.program || !this.account) {
             return true;
         }
         return false;
