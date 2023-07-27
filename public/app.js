@@ -22,7 +22,7 @@ websocket.onmessage = async (event) => {
         
     stateQueue.push(parsedData);
 
-    if (!started && stateQueue.length >= 20) {
+    if (!started && stateQueue.length >= 10) {
         processQueue();
         started = true;
     }

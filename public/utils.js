@@ -35,13 +35,23 @@ export function showTooltip(tooltip, event, content) {
 }
 
 export function createScales(maxComputeUnits) {
+    /*
     const lightnessScale = d3.scaleLinear()
         .domain([0, maxComputeUnits])
         .range([30, 60]);
+    */
 
     const hueScale = d3.scaleLinear()
         .domain([0, 0xffffffff])
         .range([270, 150]);
 
-    return { lightnessScale, hueScale };
+    // return { lightnessScale, hueScale };
+    return { hueScale };
+}
+
+//Remove all but the last tooltip
+export function removeStrayTooltips() {
+    d3.selectAll(".tooltip")
+    .filter((d, i, nodes) => i < nodes.length - 1)
+    .remove(); 
 }
