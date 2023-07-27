@@ -22,7 +22,7 @@ websocket.onmessage = async (event) => {
         
     stateQueue.push(parsedData);
 
-    if (!started && stateQueue.length >= 20) {
+    if (!started && stateQueue.length >= 10) {
         processQueue();
         started = true;
     }
@@ -39,7 +39,7 @@ async function processQueue() {
             const firstElement = stateQueue.shift();
             await draw(firstElement);
         }
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 1000));
     }
 }
 
