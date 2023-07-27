@@ -1,18 +1,33 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+.main-content {
+    display: flex;
+    justify-content: center;
+    width: 100%;
 }
 
-body {
-    font-family: Arial, sans-serif;
-    line-height: 1.6;
-    background-color: black; /* change background-color to black */
-    color: #333;
-    padding: 20px;
+.visualization-container {
+    text-align: center;
 }
 
-/* container to center content */
+.visualization {
+    width: 1150px;
+    height: 650px;
+    margin-right: 20px;
+}
+
+.block-info {
+    max-width: 300px;
+    text-align: left;
+    color: white;
+    font-size: 18px;
+}
+
+.block-payload {
+    max-width: 1150px;
+    margin: 0 auto; /* This will center the div */
+    color: white;
+    font-size: 14px;
+}
+
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -26,7 +41,6 @@ h1 {
     margin-bottom: 20px;
 }
 
-/* heatmap visualization container */
 #heatmap {
     width: 100%;
     height: 500px;
@@ -48,7 +62,12 @@ p {
     pointer-events: none;
 }
 
-/* Add this to style the SVG background */
-#visualization {
-    background-color: #111111; /* very dark gray */
+body {
+    background-color: black; /* change background-color to black */
+    color: #333;
+}
+
+.container {
+    background: #111111; /* change container background to very dark gray */
+    color: #ddd; /* change font color to light gray */
 }

@@ -144,8 +144,8 @@ export async function draw(data) {
     // Draw nodes
     Object.values(accountState).forEach(node => {
         const { x, y } = node.position;
-        drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip);
-            //.style("opacity", node.alpha);
+        const latest = node.fadedness == 0;
+        drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip, latest);
         node.drawBackgroundShape(svg);
     });
 
@@ -153,14 +153,11 @@ export async function draw(data) {
         const { x, y } = node.position;
         const latest = node.fadedness == 0;
         drawProgram(svg, x, y, 6, node.fill, node.tooltipContent, tooltip, latest);
-        //    .style("opacity", node.alpha);
     });
 
     removeStrayTooltips();
 
 }
-
-
 
 let delay = 40;
 let duration = 400;
@@ -192,7 +189,7 @@ function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest) {
     return circle;
 }
 
-function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
+function drawAccount(svg, cx, cy, radius, fill, content, tooltip, latest) {
     const circle = svg.append("circle")
     .attr("cx", cx)
     .attr("cy", cy)
@@ -202,16 +199,18 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
     .on("mouseout", () => hideTooltip(tooltip));
 
     // Pulse animation to indicate the circle was in the most recent block
-    /*
-    circle.transition()
-        .duration(600)
-        .ease(d3.easeElastic)
-        .attr("r", radius * 1.3)
+    if (latest) {
+        circle.transition()
+        .delay(delay)
+        .duration(duration)
+        .ease(easing)
+        .attr("r", radius * scaleIncrease)
         .transition()
-        .duration(600)
-        .ease(d3.easeElastic)
+        .duration(duration)
+        .ease(easing)
         .attr("r", radius);
-    */
+    }
+
     return circle;
 }
 
@@ -225,7 +224,10 @@ function drawLine(linesGroup, x1, y1, x2, y2, alpha1, alpha2) {
         .attr("x2", x2)
         .attr("y2", y2)
         //.attr("stroke", "red")
-        .attr("stroke", "#34eb92")
+        //.attr("stroke", "#34eb92") neon green
+        //#40E0D0 (Turquoise) or #ADD8E6 (Light Blue)
+        .attr("stroke", "#ADD8E6")
+
         .attr("stroke-width", 0.3)
         .style("opacity", opacity);
 }
