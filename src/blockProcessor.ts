@@ -74,7 +74,7 @@ export async function processBlock(block: VersionedBlockResponse) {
         informativeAccounts: informativeAccounts,
         addressToLabelMap: Object.fromEntries(addressToLabelMap),
         maxComputeUnits: highestComputeUnit,
-        programsComputeUnits: computeUnitsArray
+        programsComputeUnits: resolvedComputeUnitsArray
     });
 
     return payload;
