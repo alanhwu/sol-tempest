@@ -15,6 +15,7 @@ class BaseNode {
         this.computeUnits = computeUnits;
 
         this.fadedness = 0;
+        this.max_fade = MAX_FADE;
     }
 
     updateComputeUnits(newComputeUnits) {
@@ -29,12 +30,13 @@ class BaseNode {
         this.fadedness = 0;
     }
 
-    isFadedOut() {
-        return this.fadedness >= MAX_FADE;
+    isFadedOut(historyNumber) {
+        this.max_fade = historyNumber;
+        return this.fadedness >= historyNumber;
     }
 
     get alpha() {
-        return 1 - (this.fadedness/MAX_FADE);
+        return 1 - (this.fadedness/this.max_fade);
     }
 
     get position() {

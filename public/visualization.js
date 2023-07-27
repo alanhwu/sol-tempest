@@ -15,7 +15,7 @@ data must be an object with the following properties:
     programsComputeUnits: array of objects with programAddress and computeUnits properties
 */
 
-export async function draw(data, maxAccounts, animationBool) {
+export async function draw(data, maxAccounts, animationBool, historyNumber) {
     let originalAddressLabelMap = data.addressToLabelMap || {}; // Check if data.addressToLabelMap exists, otherwise use an empty object
     const originalAddressLabelMapEntries = Object.entries(originalAddressLabelMap);
     originalAddressLabelMap = new Map(originalAddressLabelMapEntries);
@@ -44,7 +44,7 @@ export async function draw(data, maxAccounts, animationBool) {
     Object.keys(accountState).forEach(key => {
         const node = accountState[key];
         node.fade();
-        if (node.isFadedOut()) {
+        if (node.isFadedOut(historyNumber)) {
             console.log(`delete node ${node.address}`);
             delete accountState[key];
         } else {
@@ -56,7 +56,7 @@ export async function draw(data, maxAccounts, animationBool) {
     Object.keys(programState).forEach(key => {
         const node = programState[key];
         node.fade();
-        if (node.isFadedOut()) {
+        if (node.isFadedOut(historyNumber)) {
             console.log("Deleting program node");
             delete programState[key];
         } else {

@@ -3,12 +3,13 @@ const websocket = new WebSocket('ws://localhost:3000');
 
 const slider = document.getElementById('slider');
 const toggle1 = document.getElementById('toggle1');
-const toggle2 = document.getElementById('toggle2');
+const historySlider = document.getElementById('history_slider');
+const historySliderValueDisplay = document.getElementById('history-value');
 const sliderValueDisplay = document.getElementById('slider-value');
 
 let maxAccounts = 100;
 let animationBool = true;
-let memoryBool = true;
+let history = 3;
 
 slider.oninput = function() {
     maxAccounts = this.value;
@@ -16,13 +17,16 @@ slider.oninput = function() {
     sliderValueDisplay.textContent = this.value;
 }
 
+historySlider.oninput = function() {
+    // Update the displayed slider value.
+    history = this.value;
+    historySliderValueDisplay.textContent = this.value;
+}
+
 toggle1.onchange = function() {
     animationBool = this.checked;
 }
 
-toggle2.onchange = function() {
-   memoryBool = this.checked;
-}
 
 
 
@@ -67,7 +71,7 @@ async function processQueue() {
         if (stateQueue.length > 0) {
             console.log(`length of stateQueue: ${stateQueue.length}`);
             const firstElement = stateQueue.shift();
-            await draw(firstElement, maxAccounts, animationBool);
+            await draw(firstElement, maxAccounts, animationBool, history);
         }
         await new Promise(r => setTimeout(r, 1000));
     }
