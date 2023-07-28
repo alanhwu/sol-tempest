@@ -1,4 +1,5 @@
-import { BlockResponse, Connection, GetVersionedBlockConfig } from '@solana/web3.js';
+import { BlockResponse, Connection, GetVersionedBlockConfig, PublicKey } from '@solana/web3.js';
+
 require('dotenv').config();
 
 const url = 'https://' + process.env.SOLANA_RPC_URL; // Using the RPC URL from the .env file

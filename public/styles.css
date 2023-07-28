@@ -23,7 +23,7 @@
 
 .block-payload {
     max-width: 1150px;
-    margin: 0 auto; /* This will center the div */
+    margin: 0 auto; /* center the div */
     color: white;
     font-size: 14px;
 }
@@ -31,13 +31,13 @@
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    background: #111111; /* change container background to very dark gray */
+    background: #111111;
     padding: 20px;
-    color: #ddd; /* change font color to light gray */
+    color: #ddd; 
 }
 
 h1 {
-    color: #aaa; /* change heading color to light gray */
+    color: #aaa;
     margin-bottom: 20px;
 }
 
@@ -63,13 +63,13 @@ p {
 }
 
 body {
-    background-color: black; /* change background-color to black */
+    background-color: black; 
     color: #333;
 }
 
 .container {
-    background: #111111; /* change container background to very dark gray */
-    color: #ddd; /* change font color to light gray */
+    background: #111111; 
+    color: #ddd; 
 }
 
 #insights-description {
@@ -84,4 +84,98 @@ a {
 
 a:hover {
     color: #80ffff; /* slightly darker cyan on hover */
+}
+
+.dropdown {
+    position: relative;
+    width: 300px;
+}
+  
+.search-input {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    border: none;
+    border-bottom: 1px solid #888;
+}
+  
+.dropdown-items {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    border: 1px solid #888;
+    background-color: #fff;
+    z-index: 99;
+}
+
+.clear-input {
+    position: absolute;
+    right: 0;
+    top: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    font-size: 16px;
+    color: #888;
+}
+
+.clear-input:hover {
+    color: red;
+}
+  
+.dropdown-items div {
+    padding: 10px;
+    cursor: pointer;
+}
+
+.dropdown-items div:hover {
+    background-color: #ddd;
+}
+
+/* Dropdown Container */
+#dropdownItems {
+    display: none;
+    box-shadow: 0px 4px 6px 2px rgba(0,0,0,0.1);
+    background-color: #293249; 
+    border-radius: 8px; /* Rounded corners */
+    margin-top: 4px; /* small gap between the input and the dropdown */
+    max-height: 300px; 
+    overflow: auto; /* scrolling for a long list */
+}
+
+/* Dropdown Item */
+#dropdownItems div {
+    padding: 12px 16px;
+    cursor: pointer; /* Change cursor to a hand when hovering over */
+    color: #ffffff; 
+}
+
+/* Dropdown Item Hover */
+#dropdownItems div:hover {
+    background-color: #f8f9fa; /* Slightly change the background when hovered over */
+}
+
+/* Input Box */
+#searchInput {
+    width: 100%;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid #ced4da; 
+    font-size: 16px;
+}
+
+.dropdownCategory {
+    font-weight: bold;
+    color: #293249; 
+    margin-top: 5px; 
+    pointer-events: none; /* make labels non-interactive */
+    user-select: none; /* prevent the user from selecting the text */
+    font-size: 0.8em; 
+    padding: 0px; 
+    border: none;
+    background: none;
+    height: 3px;
 }
