@@ -1,8 +1,42 @@
 import { draw } from './visualization.js';
+import { reformatString } from './utils.js';
 const websocket = new WebSocket('ws://localhost:3000');
+
+const slider = document.getElementById('slider');
+const toggle1 = document.getElementById('toggle1');
+const historySlider = document.getElementById('history_slider');
+const historySliderValueDisplay = document.getElementById('history-value');
+const sliderValueDisplay = document.getElementById('slider-value');
+
+const insights = document.getElementById('insights-description');
+
+let maxAccounts = 100;
+let animationBool = true;
+let history = 3;
+
+slider.oninput = function() {
+    maxAccounts = this.value;
+    // Update the displayed slider value.
+    sliderValueDisplay.textContent = this.value;
+}
+
+historySlider.oninput = function() {
+    // Update the displayed slider value.
+    history = this.value;
+    historySliderValueDisplay.textContent = this.value;
+}
+
+toggle1.onchange = function() {
+    animationBool = this.checked;
+}
+
+
+
 
 let stateQueue = [];
 let started = false;
+const blockInfoContainer = document.getElementById('block-info');
+blockInfoContainer.textContent = `Block Number: `;
 
 websocket.onmessage = async (event) => {
     console.log('Data received from server:', event.data);
@@ -16,14 +50,19 @@ websocket.onmessage = async (event) => {
         parsedData = event.data; // In case it's not a JSON string
     }
     
-    const blockInfoContainer = document.getElementById('block-info');
-    blockInfoContainer.textContent = typeof parsedData === 'object' ?
+    const blockPayloadContainer = document.getElementById('block-payload');
+    blockPayloadContainer.textContent = typeof parsedData === 'object' ?
         JSON.stringify(parsedData, null, 2) : parsedData;
-        
+
+    blockInfoContainer.textContent = `Block number: ${parsedData.blockNumber}`;
+
+    let formattedInsights = reformatString(parsedData.insights);
+    insights.innerHTML = `Top Compute Accounts (Last 5 blocks)\n${formattedInsights}`;
+
     stateQueue.push(parsedData);
 
 
-    if (!started && stateQueue.length >= 10) {
+    if (!started && stateQueue.length >= 3) {
         processQueue();
         started = true;
     }
@@ -38,9 +77,12 @@ async function processQueue() {
         if (stateQueue.length > 0) {
             console.log(`length of stateQueue: ${stateQueue.length}`);
             const firstElement = stateQueue.shift();
-            await draw(firstElement);
+            await draw(firstElement, maxAccounts, animationBool, history);
         }
         await new Promise(r => setTimeout(r, 1000));
     }
 }
+
+
+
 
