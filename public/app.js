@@ -1,4 +1,5 @@
 import { draw } from './visualization.js';
+import { reformatString } from './utils.js';
 const websocket = new WebSocket('ws://localhost:3000');
 
 const slider = document.getElementById('slider');
@@ -6,6 +7,8 @@ const toggle1 = document.getElementById('toggle1');
 const historySlider = document.getElementById('history_slider');
 const historySliderValueDisplay = document.getElementById('history-value');
 const sliderValueDisplay = document.getElementById('slider-value');
+
+const insights = document.getElementById('insights-description');
 
 let maxAccounts = 100;
 let animationBool = true;
@@ -52,7 +55,10 @@ websocket.onmessage = async (event) => {
         JSON.stringify(parsedData, null, 2) : parsedData;
 
     blockInfoContainer.textContent = `Block number: ${parsedData.blockNumber}`;
-        
+
+    let formattedInsights = reformatString(parsedData.insights);
+    insights.innerHTML = `Top Compute Accounts (Last 5 blocks)\n${formattedInsights}`;
+
     stateQueue.push(parsedData);
 
 
@@ -76,4 +82,7 @@ async function processQueue() {
         await new Promise(r => setTimeout(r, 1000));
     }
 }
+
+
+
 

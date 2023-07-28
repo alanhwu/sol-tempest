@@ -3,6 +3,7 @@ import { addressLabel } from './tx';
 import { Cluster } from './utils/cluster'; // Update with the correct path if these are custom types
 import { config } from './config';
 
+let prevFiveBlocks : Map<string, number>[] = [];
 export async function processBlock(block: VersionedBlockResponse) {
     //map from Program to CU consumed
     let computeUnitMap: Map<string, number> = new Map<string, number>();
@@ -62,6 +63,30 @@ export async function processBlock(block: VersionedBlockResponse) {
         addressToLabelMap.set(obj.address, obj.addressLabel);
     }
 
+    prevFiveBlocks.push(accountAddressToComputeMap);
+    if (prevFiveBlocks.length > 5) {
+        prevFiveBlocks.shift();
+    }
+    //merge these 5 maps into one. if an address is in more than one map, add the computeUnits
+    let combinedMap = new Map<string, number>();
+
+    prevFiveBlocks.forEach(map => {
+        for(let [account, value] of map) {
+            if (combinedMap.has(account)) {
+                combinedMap.set(account, combinedMap.get(account)! + value);
+            } else {
+                combinedMap.set(account, value);
+            }
+        }
+    });
+
+    let sortableArray = Array.from(combinedMap);
+
+    sortableArray.sort((a, b) => b[1] - a[1]);
+
+    let insights = sortableArray.slice(0, 10);
+
+
     const highestComputeUnit = Math.max(...Array.from(accountAddressToComputeMap.values()));
     //sort informativeAccounts by computeUnits highest to lowest
     informativeAccounts.sort((a, b) => b.computeUnits - a.computeUnits);
@@ -78,7 +103,8 @@ export async function processBlock(block: VersionedBlockResponse) {
         maxComputeUnits: highestComputeUnit,
         programsComputeUnits: resolvedComputeUnitsArray,
         //@ts-ignore
-        blockNumber: block.blockHeight
+        blockNumber: block.blockHeight,
+        insights: insights
     });
 
     return payload;

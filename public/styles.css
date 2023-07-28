@@ -71,3 +71,17 @@ body {
     background: #111111; /* change container background to very dark gray */
     color: #ddd; /* change font color to light gray */
 }
+
+#insights-description {
+    font-size: 14px;
+    text-align: center; 
+}
+  
+a {
+    color: #a0ffff; /* light cyan */
+    text-decoration: none; /* remove underline */
+}
+
+a:hover {
+    color: #80ffff; /* slightly darker cyan on hover */
+}
