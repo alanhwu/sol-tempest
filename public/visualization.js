@@ -213,8 +213,6 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip, latest, animat
     
     return circle;
 }
-    return circle;
-}
 
 function drawLine(linesGroup, x1, y1, x2, y2, alpha1, alpha2) {
     //console.log(`fade1: ${alpha1}, fade2: ${alpha2}`)
