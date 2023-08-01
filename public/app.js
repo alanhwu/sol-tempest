@@ -155,6 +155,9 @@ let started = false;
 const blockInfoContainer = document.getElementById('block-info');
 blockInfoContainer.textContent = `Block Number: `;
 
+
+const blockPayloadContainer = document.getElementById('block-payload');
+
 websocket.onmessage = async (event) => {
     console.log('Data received from server:', event.data);
     if (event.data.size == 0) {
@@ -167,14 +170,7 @@ websocket.onmessage = async (event) => {
         parsedData = event.data; // In case it's not a JSON string
     }
     
-    const blockPayloadContainer = document.getElementById('block-payload');
-    blockPayloadContainer.textContent = typeof parsedData === 'object' ?
-        JSON.stringify(parsedData, null, 2) : parsedData;
 
-    blockInfoContainer.textContent = `Block number: ${parsedData.blockNumber}`;
-
-    let formattedInsights = reformatString(parsedData.insights);
-    insights.innerHTML = `Top Compute Accounts (Last 5 blocks)\n${formattedInsights}`;
 
     stateQueue.push(parsedData);
 
@@ -194,6 +190,23 @@ async function processQueue() {
         if (stateQueue.length > 0) {
             console.log(`length of stateQueue: ${stateQueue.length}`);
             let firstElement = stateQueue.shift();
+
+
+
+            blockPayloadContainer.textContent = typeof firstElement === 'object' ?
+            JSON.stringify(firstElement, null, 2) : firstElement;
+    
+            blockInfoContainer.textContent = `Block number: ${firstElement.blockNumber}`;
+        
+            let formattedInsights = reformatString(firstElement.insights);
+            insights.innerHTML = `Top Compute Accounts (Last 5 blocks)\n${formattedInsights}`;
+
+
+
+
+
+
+
             console.log(`the target address is: ${targetAddress}`);
             if (targetAddress) {
               console.log('target address detected');
@@ -245,7 +258,7 @@ async function processQueue() {
             await draw(firstElement, maxAccounts, animationBool, history);
   
         }
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 900));
     }
 }
 

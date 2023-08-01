@@ -267,6 +267,7 @@ function checkBalanceChanges(obj : ConfirmedTransactionMeta) {
   
     if (!preTokenBalances || !postTokenBalances || preTokenBalances.length === 0 || postTokenBalances.length === 0) return;
     for (let i = 0; i < preTokenBalances.length; i++) {
+        if (!preTokenBalances[i] || !postTokenBalances[i]) { return; }
       if (preTokenBalances[i].uiTokenAmount.amount !== postTokenBalances[i].uiTokenAmount.amount) {
         const payload = {
             mint: preTokenBalances[i].mint,
