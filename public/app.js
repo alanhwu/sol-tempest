@@ -188,8 +188,34 @@ async function processQueue() {
     while (true) {
         if (stateQueue.length > 0) {
             console.log(`length of stateQueue: ${stateQueue.length}`);
-            const firstElement = stateQueue.shift();
+            let firstElement = stateQueue.shift();
+            console.log(`the target address is: ${targetAddress}`);
+            if (targetAddress) {
+              // Filter the firstElement's informativeAccounts to only include accounts that have the token in its tokenTags
+              let relevantPrograms = new Set();
+          
+              const filteredItems = firstElement.informativeAccounts.filter(account => {
+                  if (account.tokenTags.includes(targetAddress)) {
+                      account.associatedPrograms.forEach(program => {
+                          relevantPrograms.add(program);
+                      });
+                      return true;
+                  }
+                  return false;
+              });
+          
+              const filteredPrograms = firstElement.programsComputeUnits.filter(program => {
+                  // Return true if the program.programAddress is in relevantPrograms
+                  return relevantPrograms.has(program.programAddress);
+              });
+          
+              firstElement.informativeAccounts = filteredItems;
+              firstElement.programsComputeUnits = filteredPrograms;
+          }
+          
+              
             await draw(firstElement, maxAccounts, animationBool, history);
+  
         }
         await new Promise(r => setTimeout(r, 1000));
     }
