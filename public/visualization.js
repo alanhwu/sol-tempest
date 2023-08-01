@@ -210,7 +210,9 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip, latest, animat
         .ease(easing)
         .attr("r", radius);
     }
-
+    
+    return circle;
+}
     return circle;
 }
 
