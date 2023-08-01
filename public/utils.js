@@ -55,3 +55,26 @@ export function removeStrayTooltips() {
     .filter((d, i, nodes) => i < nodes.length - 1)
     .remove(); 
 }
+
+export function reformatString(inputString) {
+    // regex match accounts and compute units
+    const regex = /([^,]+),([^,]+)/g;
+    let match;
+    const formattedLines = [];
+  
+    while ((match = regex.exec(inputString)) !== null) {
+      const address = match[1];
+      const compute = match[2];
+      
+      // Format address as first 5 characters...last 5 characters
+      const formattedAddress = address.slice(0, 5) + "..." + address.slice(-5);
+      
+      // Hyperlink to explorer
+      const hyperlink = `<a href="https://explorer.solana.com/address/${address}" target="_blank">${formattedAddress}</a>`;
+      
+      formattedLines.push(`${hyperlink}: ${compute}`);
+    }
+
+    const multiLineFormat = formattedLines.join('\n');
+    return multiLineFormat;
+}

@@ -15,7 +15,7 @@ data must be an object with the following properties:
     programsComputeUnits: array of objects with programAddress and computeUnits properties
 */
 
-export async function draw(data) {
+export async function draw(data, maxAccounts, animationBool, historyNumber) {
     let originalAddressLabelMap = data.addressToLabelMap || {}; // Check if data.addressToLabelMap exists, otherwise use an empty object
     const originalAddressLabelMapEntries = Object.entries(originalAddressLabelMap);
     originalAddressLabelMap = new Map(originalAddressLabelMapEntries);
@@ -29,7 +29,7 @@ export async function draw(data) {
     const svg = d3.select("#visualization");
 
     // Primary data structure
-    const accounts = data.informativeAccounts;
+    const accounts = data.informativeAccounts.slice(0, maxAccounts);
 
     const { lightnessScale, hueScale } = createScales(data.maxComputeUnits);
     const tooltip = createTooltip();
@@ -44,7 +44,7 @@ export async function draw(data) {
     Object.keys(accountState).forEach(key => {
         const node = accountState[key];
         node.fade();
-        if (node.isFadedOut()) {
+        if (node.isFadedOut(historyNumber)) {
             console.log(`delete node ${node.address}`);
             delete accountState[key];
         } else {
@@ -56,7 +56,7 @@ export async function draw(data) {
     Object.keys(programState).forEach(key => {
         const node = programState[key];
         node.fade();
-        if (node.isFadedOut()) {
+        if (node.isFadedOut(historyNumber)) {
             console.log("Deleting program node");
             delete programState[key];
         } else {
@@ -144,30 +144,27 @@ export async function draw(data) {
     // Draw nodes
     Object.values(accountState).forEach(node => {
         const { x, y } = node.position;
-        drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip);
-            //.style("opacity", node.alpha);
+        const latest = node.fadedness == 0;
+        drawAccount(svg, x, y, 4, node.fill, node.tooltipContent, tooltip, latest, animationBool);
         node.drawBackgroundShape(svg);
     });
 
     Object.values(programState).forEach(node => {
         const { x, y } = node.position;
         const latest = node.fadedness == 0;
-        drawProgram(svg, x, y, 6, node.fill, node.tooltipContent, tooltip, latest);
-        //    .style("opacity", node.alpha);
+        drawProgram(svg, x, y, 6, node.fill, node.tooltipContent, tooltip, latest, animationBool);
     });
 
     removeStrayTooltips();
 
 }
 
-
-
 let delay = 40;
 let duration = 400;
 let easing = d3.easeCubic;
 let scaleIncrease = 1.5;
 
-function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest) {
+function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest, animationBool) {
     const circle = svg.append("circle")
         .attr("cx", cx)
         .attr("cy", cy)
@@ -177,7 +174,7 @@ function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest) {
         .on("mouseout", () => hideTooltip(tooltip));
 
     // Pulse animation to indicate the circle was in the most recent block
-    if (latest) {
+    if (animationBool && latest) {
         circle.transition()
         .delay(delay)
         .duration(duration)
@@ -192,7 +189,7 @@ function drawProgram(svg, cx, cy, radius, fill, content, tooltip, latest) {
     return circle;
 }
 
-function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
+function drawAccount(svg, cx, cy, radius, fill, content, tooltip, latest, animationBool) {
     const circle = svg.append("circle")
     .attr("cx", cx)
     .attr("cy", cy)
@@ -202,16 +199,18 @@ function drawAccount(svg, cx, cy, radius, fill, content, tooltip) {
     .on("mouseout", () => hideTooltip(tooltip));
 
     // Pulse animation to indicate the circle was in the most recent block
-    /*
-    circle.transition()
-        .duration(600)
-        .ease(d3.easeElastic)
-        .attr("r", radius * 1.3)
+    if (animationBool && latest) {
+        circle.transition()
+        .delay(delay)
+        .duration(duration)
+        .ease(easing)
+        .attr("r", radius * scaleIncrease)
         .transition()
-        .duration(600)
-        .ease(d3.easeElastic)
+        .duration(duration)
+        .ease(easing)
         .attr("r", radius);
-    */
+    }
+    
     return circle;
 }
 
@@ -225,7 +224,10 @@ function drawLine(linesGroup, x1, y1, x2, y2, alpha1, alpha2) {
         .attr("x2", x2)
         .attr("y2", y2)
         //.attr("stroke", "red")
-        .attr("stroke", "#34eb92")
+        //.attr("stroke", "#34eb92") neon green
+        //#40E0D0 (Turquoise) or #ADD8E6 (Light Blue)
+        .attr("stroke", "#ADD8E6")
+
         .attr("stroke-width", 0.3)
         .style("opacity", opacity);
 }

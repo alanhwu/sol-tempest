@@ -3,6 +3,7 @@ import { addressLabel } from './tx';
 import { Cluster } from './utils/cluster'; // Update with the correct path if these are custom types
 import { config } from './config';
 
+let prevFiveBlocks : Map<string, number>[] = [];
 export async function processBlock(block: VersionedBlockResponse) {
     //map from Program to CU consumed
     let computeUnitMap: Map<string, number> = new Map<string, number>();
@@ -10,12 +11,14 @@ export async function processBlock(block: VersionedBlockResponse) {
 
     let accountAddressToComputeMap: Map<string, number> = new Map<string, number>();
 
+    let accountToChangedTokensMap: Map<string, Set<string>> = new Map<string, Set<string>>();
+
     const relevantTransactions = block.transactions.filter((transaction) => 
         transaction.meta &&
         transaction.meta.computeUnitsConsumed &&
         transaction.meta.computeUnitsConsumed > 0
     );
-    processTransactions(relevantTransactions, computeUnitMap, addressToProgramsMap, accountAddressToComputeMap);
+    processTransactions(relevantTransactions, computeUnitMap, addressToProgramsMap, accountAddressToComputeMap, accountToChangedTokensMap);
 
     let payload : any = null;
 
@@ -41,12 +44,13 @@ export async function processBlock(block: VersionedBlockResponse) {
             address : address,
             addressLabel: addressLabel(address, Cluster.MainnetBeta) || address,
             computeUnits: accountAddressToComputeMap.get(address) ?? 0,
-            associatedPrograms: Array.from(associatedPrograms)
+            associatedPrograms: Array.from(associatedPrograms),
+            tokenTags: Array.from(accountToChangedTokensMap.get(address) ?? new Set<string>())
         }
         informativeAccounts.push(currentInformativeAccount);
     });
 
-    if (config) {
+    if (config && config.trimAccounts) {
         // Sort informativeAccounts array based on computeUnits in descending order
         informativeAccounts.sort((a, b) => b.computeUnits - a.computeUnits);
         // Keep only the top compute unit accounts based on the configuration
@@ -62,7 +66,33 @@ export async function processBlock(block: VersionedBlockResponse) {
         addressToLabelMap.set(obj.address, obj.addressLabel);
     }
 
+    prevFiveBlocks.push(accountAddressToComputeMap);
+    if (prevFiveBlocks.length > 5) {
+        prevFiveBlocks.shift();
+    }
+    //merge these 5 maps into one. if an address is in more than one map, add the computeUnits
+    let combinedMap = new Map<string, number>();
+
+    prevFiveBlocks.forEach(map => {
+        for(let [account, value] of map) {
+            if (combinedMap.has(account)) {
+                combinedMap.set(account, combinedMap.get(account)! + value);
+            } else {
+                combinedMap.set(account, value);
+            }
+        }
+    });
+
+    let sortableArray = Array.from(combinedMap);
+
+    sortableArray.sort((a, b) => b[1] - a[1]);
+
+    let insights = sortableArray.slice(0, 10);
+
+
     const highestComputeUnit = Math.max(...Array.from(accountAddressToComputeMap.values()));
+    //sort informativeAccounts by computeUnits highest to lowest
+    informativeAccounts.sort((a, b) => b.computeUnits - a.computeUnits);
 
     //payload must be an object with the following properties:
     //informativeAccounts: array of account objects
@@ -74,7 +104,10 @@ export async function processBlock(block: VersionedBlockResponse) {
         informativeAccounts: informativeAccounts,
         addressToLabelMap: Object.fromEntries(addressToLabelMap),
         maxComputeUnits: highestComputeUnit,
-        programsComputeUnits: resolvedComputeUnitsArray
+        programsComputeUnits: resolvedComputeUnitsArray,
+        //@ts-ignore
+        blockNumber: block.blockHeight,
+        insights: insights
     });
 
     return payload;
@@ -109,7 +142,15 @@ export async function findAssociatedAddresses(programAddress : string, targetTra
 export function processAccounts(accountIndices: any[], accountKeys: any, programAddress: string, computeUnitsConsumed: number, addressToProgramsMap: Map<string, Set<string>>, payload: any, programToAccounts: Map<string, string[]>) {
     let count = 0;
     accountIndices.forEach((index: any) => {
-        if (!payload.isAccountWritable(index) || index >= accountKeys.length) return;
+        // only consider writeable accounts
+        if (index >= accountKeys.length) {
+            //console.log(`Invalid account index: ${index}`);
+            return;
+        }
+        if (!payload.isAccountWritable(index)) {
+            //console.log(`Account of address ${accountKeys[index].address} is not writable`);
+            return;
+        }
         count++;
         const address = accountKeys[index].toString();
 
@@ -125,7 +166,7 @@ export function processAccounts(accountIndices: any[], accountKeys: any, program
 }
 
 
-export function processTransactions(transactions: any[], computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<string>>, accountAddressToComputeMap: Map<string, number>) {
+export function processTransactions(transactions: any[], computeUnitMap: Map<string, number>, addressToProgramsMap: Map<string, Set<string>>, accountAddressToComputeMap: Map<string, number>, accountToChangedTokensMap: Map<string, Set<string>>) {
     if (!transactions || transactions.length === 0) {
         return;
     }
@@ -186,6 +227,16 @@ export function processTransactions(transactions: any[], computeUnitMap: Map<str
         }
         );
 
+        //check tokenbalances to tag
+        const tokenTags = checkBalanceChanges(meta);
+        if (tokenTags) {
+            for (const tokenTag of tokenTags) {
+                if (tokenTag.mint !== undefined && tokenTag.owner !== undefined) {
+                    accountToChangedTokensMap.set(tokenTag.owner, accountToChangedTokensMap.get(tokenTag.owner)?.add(tokenTag.mint) || new Set<string>([tokenTag.mint]));
+                }
+            }
+        }
+
     }
 }
 
@@ -194,7 +245,8 @@ type InformativeAccount = {
     address: string,
     addressLabel: string,
     associatedPrograms: string[],
-    computeUnits: number
+    computeUnits: number,
+    tokenTags: string[]
 }
 type myTransaction = {
     transaction: {
@@ -208,3 +260,21 @@ type programWithCompute = {
     programAddress: string,
     compute: number
 }
+
+function checkBalanceChanges(obj : ConfirmedTransactionMeta) {
+    const { preTokenBalances, postTokenBalances } = obj;
+    const mintChanges = [];
+  
+    if (!preTokenBalances || !postTokenBalances || preTokenBalances.length === 0 || postTokenBalances.length === 0) return;
+    for (let i = 0; i < preTokenBalances.length; i++) {
+      if (preTokenBalances[i].uiTokenAmount.amount !== postTokenBalances[i].uiTokenAmount.amount) {
+        const payload = {
+            mint: preTokenBalances[i].mint,
+            owner: preTokenBalances[i].owner,
+        }
+        mintChanges.push(payload);
+      }
+    }
+  
+    return mintChanges;
+  }
