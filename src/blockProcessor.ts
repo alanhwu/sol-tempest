@@ -36,7 +36,6 @@ export async function processBlock(block: VersionedBlockResponse) {
         return null;
     }
 
-    console.log(`token map: ${JSON.stringify(accountToChangedTokensMap)}`);
     //create informativeAccounts array
     let informativeAccounts : InformativeAccount[] = [];
     //for each in addressToProgramsMap, build informative object

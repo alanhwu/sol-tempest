@@ -33,6 +33,7 @@ toggle1.onchange = function() {
 
 let selectedItem = null;
 let targetAddress = null;
+let targetType = null;
 
 const configItems = config.topItems;
 const topItems =
@@ -115,6 +116,9 @@ document.querySelector('#searchInput').addEventListener('click', function() {
         selectedItem = e.target.textContent;
         console.log(selectedItem);
         targetAddress = configItems.find(item => item.name === selectedItem).address;
+        targetType = configItems.find(item => item.name === selectedItem).form;
+        console.log(`targetAddress: ${targetAddress}`);
+        console.log(`targetType: ${targetType}`);
 
         dropdownItems.style.display = 'none';
     }
@@ -136,6 +140,7 @@ document.querySelector('#clearInput').addEventListener('click', function() {
   // Reset the selectedItem variable
   selectedItem = null;
   targetAddress = null;
+  targetType = null;
   console.log('cleared the target address');
   console.log(`targetAddress: ${targetAddress}`);
   console.log(`selectedItem: ${selectedItem}`);
@@ -191,28 +196,51 @@ async function processQueue() {
             let firstElement = stateQueue.shift();
             console.log(`the target address is: ${targetAddress}`);
             if (targetAddress) {
-              // Filter the firstElement's informativeAccounts to only include accounts that have the token in its tokenTags
-              let relevantPrograms = new Set();
-          
-              const filteredItems = firstElement.informativeAccounts.filter(account => {
-                  if (account.tokenTags.includes(targetAddress)) {
-                      account.associatedPrograms.forEach(program => {
-                          relevantPrograms.add(program);
-                      });
-                      return true;
+              console.log('target address detected');
+              if (targetType == 'program') {
+                let relevantPrograms = new Set();
+                console.log('filter based on program');
+                const filteredItems = firstElement.informativeAccounts.filter(account => {
+                  if (account.associatedPrograms.includes(targetAddress)) {
+                    account.associatedPrograms.forEach(program => {
+                      relevantPrograms.add(program);
+                    });
+                    return true;
                   }
                   return false;
-              });
-          
-              const filteredPrograms = firstElement.programsComputeUnits.filter(program => {
+                });
+
+                const filteredPrograms = firstElement.programsComputeUnits.filter(program => {
                   // Return true if the program.programAddress is in relevantPrograms
                   return relevantPrograms.has(program.programAddress);
-              });
-          
-              firstElement.informativeAccounts = filteredItems;
-              firstElement.programsComputeUnits = filteredPrograms;
-          }
-          
+                });
+                firstElement.informativeAccounts = filteredItems;
+                firstElement.programsComputeUnits = filteredPrograms;
+              }
+              else if (targetType == 'token') {
+                console.log('filter based on token');
+                // Filter the firstElement's informativeAccounts to only include accounts that have the token in its tokenTags
+                let relevantPrograms = new Set();
+            
+                const filteredItems = firstElement.informativeAccounts.filter(account => {
+                    if (account.tokenTags.includes(targetAddress)) {
+                        account.associatedPrograms.forEach(program => {
+                            relevantPrograms.add(program);
+                        });
+                        return true;
+                    }
+                    return false;
+                });
+            
+                const filteredPrograms = firstElement.programsComputeUnits.filter(program => {
+                    // Return true if the program.programAddress is in relevantPrograms
+                    return relevantPrograms.has(program.programAddress);
+                });
+            
+                firstElement.informativeAccounts = filteredItems;
+                firstElement.programsComputeUnits = filteredPrograms;
+              }
+            }
               
             await draw(firstElement, maxAccounts, animationBool, history);
   
@@ -220,6 +248,7 @@ async function processQueue() {
         await new Promise(r => setTimeout(r, 1000));
     }
 }
+
 
 
 
