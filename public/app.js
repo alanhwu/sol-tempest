@@ -185,84 +185,62 @@ websocket.onerror = (error) => {
     console.error('WebSocket Error:', error);
 };
 
-async function processQueue() {
-    while (true) {
-        if (stateQueue.length > 0) {
-            console.log(`length of stateQueue: ${stateQueue.length}`);
-            let firstElement = stateQueue.shift();
+// Function to display the first element from the queue
+function displayFirstElement(firstElement) {
+  blockPayloadContainer.textContent = typeof firstElement === 'object' ?
+      JSON.stringify(firstElement, null, 2) : firstElement;
 
+  blockInfoContainer.textContent = `Block number: ${firstElement.blockNumber}`;
 
-
-            blockPayloadContainer.textContent = typeof firstElement === 'object' ?
-            JSON.stringify(firstElement, null, 2) : firstElement;
-    
-            blockInfoContainer.textContent = `Block number: ${firstElement.blockNumber}`;
-        
-            let formattedInsights = reformatString(firstElement.insights);
-            insights.innerHTML = `Top Compute Accounts (Last 5 blocks)\n${formattedInsights}`;
-
-
-
-
-
-
-
-            console.log(`the target address is: ${targetAddress}`);
-            if (targetAddress) {
-              console.log('target address detected');
-              if (targetType == 'program') {
-                let relevantPrograms = new Set();
-                console.log('filter based on program');
-                const filteredItems = firstElement.informativeAccounts.filter(account => {
-                  if (account.associatedPrograms.includes(targetAddress)) {
-                    account.associatedPrograms.forEach(program => {
-                      relevantPrograms.add(program);
-                    });
-                    return true;
-                  }
-                  return false;
-                });
-
-                const filteredPrograms = firstElement.programsComputeUnits.filter(program => {
-                  // Return true if the program.programAddress is in relevantPrograms
-                  return relevantPrograms.has(program.programAddress);
-                });
-                firstElement.informativeAccounts = filteredItems;
-                firstElement.programsComputeUnits = filteredPrograms;
-              }
-              else if (targetType == 'token') {
-                console.log('filter based on token');
-                // Filter the firstElement's informativeAccounts to only include accounts that have the token in its tokenTags
-                let relevantPrograms = new Set();
-            
-                const filteredItems = firstElement.informativeAccounts.filter(account => {
-                    if (account.tokenTags.includes(targetAddress)) {
-                        account.associatedPrograms.forEach(program => {
-                            relevantPrograms.add(program);
-                        });
-                        return true;
-                    }
-                    return false;
-                });
-            
-                const filteredPrograms = firstElement.programsComputeUnits.filter(program => {
-                    // Return true if the program.programAddress is in relevantPrograms
-                    return relevantPrograms.has(program.programAddress);
-                });
-            
-                firstElement.informativeAccounts = filteredItems;
-                firstElement.programsComputeUnits = filteredPrograms;
-              }
-            }
-              
-            await draw(firstElement, maxAccounts, animationBool, history);
-  
-        }
-        await new Promise(r => setTimeout(r, 900));
-    }
+  let formattedInsights = reformatString(firstElement.insights);
+  insights.innerHTML = `Top Compute Accounts (Last 5 blocks)\n${formattedInsights}`;
 }
 
+// Function to filter programs or tokens
+function filterElements(firstElement, filterByProgram) {
+  let relevantPrograms = new Set();
+  const filteredItems = firstElement.informativeAccounts.filter(account => {
+      const isRelevant = filterByProgram 
+          ? account.associatedPrograms.includes(targetAddress)
+          : account.tokenTags.includes(targetAddress);
 
+      if (isRelevant) {
+          account.associatedPrograms.forEach(program => {
+              relevantPrograms.add(program);
+          });
+      }
+      return isRelevant;
+  });
 
+  const filteredPrograms = firstElement.programsComputeUnits.filter(program => {
+      return relevantPrograms.has(program.programAddress);
+  });
 
+  firstElement.informativeAccounts = filteredItems;
+  firstElement.programsComputeUnits = filteredPrograms;
+}
 
+async function processQueue() {
+  while (true) {
+      if (stateQueue.length > 0) {
+          console.log(`length of stateQueue: ${stateQueue.length}`);
+          let firstElement = stateQueue.shift();
+
+          displayFirstElement(firstElement);
+
+          console.log(`the target address is: ${targetAddress}`);
+          if (targetAddress) {
+              if (targetType === 'program') {
+                  console.log('target address detected');
+                  console.log('filter based on program');
+                  filterElements(firstElement, true);
+              } else if (targetType === 'token') {
+                  console.log('filter based on token');
+                  filterElements(firstElement, false);
+              }
+          }
+          await draw(firstElement, maxAccounts, animationBool, history);
+      }
+      await new Promise(r => setTimeout(r, 900));
+  }
+}

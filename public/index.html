@@ -2,52 +2,68 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/styles.css">
+    <script src="https://unpkg.com/vue@3.2.1"></script>
+    <link rel="stylesheet" type="text/css" href="styles.css">
     <title>Sol Tempest</title>
 </head>
 <body>
-    <div class="main-content">
-        <div class="visualization-container">
-            <h1>Sol Tempest</h1>
-            <svg class="visualization" id="visualization" width="1150" height="650"></svg>
-        </div>
-        <div class="block-info">
+    <div id="app">
+       <div class="content-container">
+          <div class="visualization-container">
+             <h1>Sol Tempest</h1>
+             <svg class="visualization" id="visualization" width="1150" height="650"></svg>
+          </div>
+          <div class="block-info">
+            
             <pre id="block-info"></pre>
-
-            <div id="slider-container">
-                <label for="slider">Top Accounts:</label>
-                <input type="range" id="slider" min="0" max="100" value="100">
-                <span id="slider-value">100</span>
-            </div>
-
-            <div id="history-slider-container">
-                <label for="history_slider">History:</label>
-                <input type="range" id="history_slider" min="1" max="3" value="3">
-                <span id="history-value">3</span>
-            </div>
-
-            <div id="toggle-container">
-                <div>
-                    <label for="toggle1">Animations:</label>
-                    <input type="checkbox" id="toggle1" checked>
-                </div>
-            </div>
-
-
-            <div class="dropdown">
-                <input type="text" class="search-input" placeholder="Search..." id="searchInput">
-                <button id="clearInput" class="clear-input">x</button>
-                <div id="dropdownItems" class="dropdown-items"></div>
+            <h2>Control Panel</h2> <!-- Control Panel Title -->
+            <div style="margin-bottom: 10px;">
+                <slider-input v-model="maxAccounts" label="Top Accounts:" min="1" max="100"></slider-input>
+              </div>
+              <div style="margin-bottom: 10px;">
+                <slider-input v-model="history" label="History:" min="1" max="3"></slider-input>
               </div>
               
-            <pre id="insights-description">Insights</pre>
-        </div>
+            
+            <div style="margin-bottom: 10px;"> <!-- Added spacing between switch and dropdown -->
+              <label>
+                Animations:
+                <label class="switch">
+                    <input type="checkbox" v-model="animationBool">
+                    <span class="slider round"></span>
+                </label>
+              </label>
+            </div>
+            
+            <h3>Target Account / Program</h3> <!-- Target Account/Program Title -->
+            <div class="search-container">
+              <input type="text" v-model="searchInput" @click="toggleDropdown" id="searchInput">
+              <button @click="clearInput" id="clearInput">x</button>
+              <div id="dropdownItems" v-show="dropdownVisible">
+                  <div @click="handleItemClick('Wrapped SOL')">Wrapped SOL</div>
+                  <div @click="handleItemClick('USDC')">USDC</div>
+                  <div @click="handleItemClick('Mango Markets')">Mango Markets</div>
+                  <div @click="handleItemClick('Drift Protocol')">Drift Protocol</div>
+              </div>
+            </div>
+            
+            <pre id="insights-description">Top Compute Accounts (Last 5 blocks)<div class="insights-content" v-html="insights"></div></pre>
+
+          </div>
+          
+            
+
+
+          </div>
+       </div>
+
+
+    
+
+       
     </div>
-    <div class="block-payload">
-        <pre id="block-payload"></pre>
-    </div>
-    <script src="/app.js" type="module"></script>
-</body>
-</html>
+    <script src="main.js" type="module"></script>
+    </body>
+    </html>
+    
