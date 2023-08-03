@@ -45,10 +45,10 @@ export async function draw(data, maxAccounts, animationBool, historyNumber) {
         const node = accountState[key];
         node.fade();
         if (node.isFadedOut(historyNumber)) {
-            console.log(`delete node ${node.address}`);
+            //console.log(`delete node ${node.address}`);
             delete accountState[key];
         } else {
-            console.log(`node ${node.address} is not faded out with a fadedness of ${node.fadedness}`);
+            //console.log(`node ${node.address} is not faded out with a fadedness of ${node.fadedness}`);
         }
     });
 
@@ -57,10 +57,10 @@ export async function draw(data, maxAccounts, animationBool, historyNumber) {
         const node = programState[key];
         node.fade();
         if (node.isFadedOut(historyNumber)) {
-            console.log("Deleting program node");
+            // console.log("Deleting program node");
             delete programState[key];
         } else {
-            console.log(`node ${node.address} is not faded out with a fadedness of ${node.fadedness}`);
+            // console.log(`node ${node.address} is not faded out with a fadedness of ${node.fadedness}`);
         }
     });
 
@@ -101,7 +101,7 @@ export async function draw(data, maxAccounts, animationBool, historyNumber) {
     // Go through lines and delete if either program or account is undefined
     Object.values(lineState).forEach(line => {
         if (line.checkDeath()){
-            console.log(`deleting line ${line.key}`);
+            // console.log(`deleting line ${line.key}`);
             delete lineState[line.key];
         }
     });
@@ -112,15 +112,15 @@ export async function draw(data, maxAccounts, animationBool, historyNumber) {
         const programs = account.associatedPrograms;
         for (const program of programs) {
             const lineKey = `${program}-${address}`;
-            console.log(`lineKey: ${lineKey}`);
+            // console.log(`lineKey: ${lineKey}`);
             if ( !(lineKey in lineState) ) {
-                console.log(`Creating new line ${lineKey}`);
+                // console.log(`Creating new line ${lineKey}`);
                 // Create new line
                 const line = new Line(programState[program], accountState[address], lineKey, programState, accountState);
                 lineState[lineKey] = line;
             } else {
                 // refresh the line
-                console.log(`Refreshing line ${lineKey}`);
+                // console.log(`Refreshing line ${lineKey}`);
                 lineState[lineKey].refresh();
             }
         }
@@ -136,8 +136,8 @@ export async function draw(data, maxAccounts, animationBool, historyNumber) {
         const { x: x1, y: y1 } = line.programPosition;
         const { x: x2, y: y2 } = line.accountPosition;
         // console.log(`drawing with alpha ${line.program.alpha} and ${line.account.alpha}`);
-        console.log(`drawing the line from program ${line.program.address} to account ${line.account.address} with alpha ${line.program.alpha} and ${line.account.alpha}`);
-        console.log(`the fadedness of the program ${line.program.address} is ${line.program.fadedness} and the fadedness of the account ${line.account.address} is ${line.account.fadedness}`);
+        // console.log(`drawing the line from program ${line.program.address} to account ${line.account.address} with alpha ${line.program.alpha} and ${line.account.alpha}`);
+        // console.log(`the fadedness of the program ${line.program.address} is ${line.program.fadedness} and the fadedness of the account ${line.account.address} is ${line.account.fadedness}`);
         drawLine(lines, x1, y1, x2, y2, line.program.alpha, line.account.alpha);
     });
 
