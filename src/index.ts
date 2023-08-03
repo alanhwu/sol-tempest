@@ -30,7 +30,16 @@ wss.on('connection', (ws) => {
     ws.on('error', (error) => {
         console.error('Client WebSocket Error:', error);
     });
+    ws.on('message', (message) => {
+        console.log('received: %s', message);
+        //payload looks like: {"blockNumber":12341234}
+        //set our slot variable to the blockNumber
+        const payload = JSON.parse(message.toString());
+        slot = payload.blockNumber;
+        console.log(`set slot to ${slot}`);
+    });
 });
+
 
 server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);

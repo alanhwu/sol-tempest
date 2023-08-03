@@ -57,6 +57,14 @@ body {
     border: 1px solid #333;
     border-radius: 8px; /* Rounded corners */
 }
+.slot-display {
+    font-size: 20px;
+    font-weight: bold;
+    color: white;
+    margin-top: -35px;
+    margin-bottom: 35px;
+  }
+  
 
 .control-panel-title {
     margin-top: 10px;
