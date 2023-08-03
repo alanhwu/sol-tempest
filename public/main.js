@@ -28,6 +28,7 @@ const app = Vue.createApp({
       dropdownVisible: false,
       isLive: true,
       clearQueue: false,
+      loading: true,
     }
   },
   computed: {
@@ -42,6 +43,25 @@ const app = Vue.createApp({
     }
   },
   methods: {
+    initializeLoadingScreen() {
+        const loadingDuration = 10000; // You can change this value to adjust the duration
+        let dots = '';
+        const dotsInterval = setInterval(() => {
+          dots += '.';
+          if (dots.length > 3) dots = '';
+          document.getElementById('dots').innerText = dots;
+        }, 500);
+      
+        setTimeout(() => {
+          clearInterval(dotsInterval);
+          document.getElementById('loading-screen').style.display = 'none';
+          
+          // Delay setting this.loading to false until after the opacity transition
+          setTimeout(() => {
+            this.loading = false;
+          }, 1000); // Delay should match the transition duration in your CSS
+        }, loadingDuration);
+      },
     sendBlockNumber() {
         // Get the value from the input field
         const blockNumber = this.$refs.blockStartInput.value;
@@ -149,6 +169,7 @@ const app = Vue.createApp({
     }
   },
   mounted() {
+    this.initializeLoadingScreen();
     websocket.onmessage = async (event) => {
       if (event.data.size === 0) {
         return;
