@@ -8,16 +8,27 @@
     <title>Sol Tempest</title>
 </head>
 <body>
+
+    <div id="loading-screen" class="loading-screen" v-if="loading">
+        <div class="loading-dots">Loading<span id="dots"></span></div>
+        <div class="loading-bar-container">
+          <div id="loading-bar" class="loading-bar"></div>
+        </div>
+      </div>
+
+
     <div id="app">
        <div class="content-container">
           <div class="visualization-container">
-             <h1>Sol Tempest</h1>
+            <h1 class="title">Sol Tempest</h1>
+
              <svg class="visualization" id="visualization" width="1150" height="650"></svg>
           </div>
           <div class="block-info">
             
             <pre id="block-info"></pre>
 
+            <h3 class="slot-display">Slot: {{ slot }}</h3>
             <pre id="insights-description">Top Compute Accounts (Last 5 blocks)<div class="insights-content" v-html="insights"></div></pre>
 
 
@@ -42,7 +53,10 @@
               </label>
             </div>
             
-            <h3>Target Account / Program</h3> <!-- Target Account/Program Title -->
+            <div class="target-account-title">
+                <h3>Target Account / Program</h3> <!-- Target Account/Program Title -->
+              </div>
+              
             <div class="search-container">
               <input type="text" v-model="searchInput" @click="toggleDropdown" id="searchInput">
               <button @click="clearInput" id="clearInput">x</button>
@@ -66,8 +80,10 @@
             
             <div :class="['block-start-container', { active: !isLive }]">
                 <label for="blockStartInput" :class="['block-start-label', isLive ? 'dimmed' : 'active']">Starting Block Number:</label>
-                <input type="number" id="blockStartInput" class="block-start-input" :class="{ dimmed: isLive }" :disabled="isLive">
-                <button class="block-start-button" :disabled="isLive">Start</button>
+                <input type="number" id="blockStartInput" ref="blockStartInput" class="block-start-input" :class="{ dimmed: isLive }" :disabled="isLive">
+                <button class="block-start-button" :disabled="isLive" @click="sendBlockNumber">Start</button>
+
+
             </div>
             
             

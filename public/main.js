@@ -13,7 +13,7 @@ const app = Vue.createApp({
       animationBool: true,
       history: 3,
       stateQueue: [],
-      blockNumber: null,
+      slot: null,
       blockPayload: null,
       insights: null,
       selectedItem: null,
@@ -27,6 +27,8 @@ const app = Vue.createApp({
       searchInput: '',
       dropdownVisible: false,
       isLive: true,
+      clearQueue: false,
+      loading: true,
     }
   },
   computed: {
@@ -41,6 +43,45 @@ const app = Vue.createApp({
     }
   },
   methods: {
+    initializeLoadingScreen() {
+        const loadingDuration = 10000; // You can change this value to adjust the duration
+        let dots = '';
+        const dotsInterval = setInterval(() => {
+          dots += '.';
+          if (dots.length > 3) dots = '';
+          document.getElementById('dots').innerText = dots;
+        }, 500);
+      
+        setTimeout(() => {
+          clearInterval(dotsInterval);
+          document.getElementById('loading-screen').style.display = 'none';
+          
+          // Delay setting this.loading to false until after the opacity transition
+          setTimeout(() => {
+            this.loading = false;
+          }, 1000); // Delay should match the transition duration in your CSS
+        }, loadingDuration);
+      },
+    sendBlockNumber() {
+        // Get the value from the input field
+        const blockNumber = this.$refs.blockStartInput.value;
+  
+        // Check if blockNumber is not empty
+        if (blockNumber) {
+          // Convert it to a number if it's a string
+          const numBlockNumber = Number(blockNumber);
+  
+          // Send the value via the WebSocket connection
+          websocket.send(JSON.stringify({ blockNumber: numBlockNumber }));
+  
+          console.log(`Block number ${numBlockNumber} sent to the server.`);
+          
+          //clear the state queue
+          this.stateQueue = [];
+        } else {
+          console.warn("Block number is empty or invalid.");
+        }
+      },
     handleOutsideClick(event) {
         if (!this.dropdownVisible || event.target.closest('#dropdownItems') || event.target.closest('#searchInput')) {
             return;
@@ -86,9 +127,13 @@ const app = Vue.createApp({
     },
     async processQueue() {
       while (true) {
+        if (this.clearQueue) {
+            this.stateQueue = [];
+            this.clearQueue = false; // Reset the flag
+        }
         if (this.stateQueue.length > 0) {
           let firstElement = this.stateQueue.shift();
-          this.blockNumber = firstElement.blockNumber;
+          this.slot = firstElement.slot;
           this.blockPayload = JSON.stringify(firstElement, null, 2);
           this.insights = reformatString(firstElement.insights);
           if (this.targetAddress) {
@@ -124,6 +169,7 @@ const app = Vue.createApp({
     }
   },
   mounted() {
+    this.initializeLoadingScreen();
     websocket.onmessage = async (event) => {
       if (event.data.size === 0) {
         return;
