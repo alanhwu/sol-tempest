@@ -17,7 +17,13 @@
           <div class="block-info">
             
             <pre id="block-info"></pre>
-            <h2>Control Panel</h2> <!-- Control Panel Title -->
+
+            <pre id="insights-description">Top Compute Accounts (Last 5 blocks)<div class="insights-content" v-html="insights"></div></pre>
+
+
+
+            <h2 class="control-panel-title">Control Panel</h2>
+
             <div style="margin-bottom: 10px;">
                 <slider-input v-model="maxAccounts" label="Top Accounts:" min="1" max="100"></slider-input>
               </div>
@@ -47,8 +53,26 @@
                   <div @click="handleItemClick('Drift Protocol')">Drift Protocol</div>
               </div>
             </div>
+
+
+            <div class="pill-container">
+                <div class="pill-selection">
+                    <div class="pill-option historical" :class="{ active: !isLive }" @click="isLive = false">Historical</div>
+                    <div class="pill-option live" :class="{ active: isLive }" @click="isLive = true">
+                        Live <div class="live-circle" :class="{ blinking: isLive }"></div>
+                    </div>
+                </div>
+            </div>
             
-            <pre id="insights-description">Top Compute Accounts (Last 5 blocks)<div class="insights-content" v-html="insights"></div></pre>
+            <div :class="['block-start-container', { active: !isLive }]">
+                <label for="blockStartInput" :class="['block-start-label', isLive ? 'dimmed' : 'active']">Starting Block Number:</label>
+                <input type="number" id="blockStartInput" class="block-start-input" :class="{ dimmed: isLive }" :disabled="isLive">
+                <button class="block-start-button" :disabled="isLive">Start</button>
+            </div>
+            
+            
+            
+            
 
           </div>
           

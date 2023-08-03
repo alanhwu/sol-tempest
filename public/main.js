@@ -25,7 +25,8 @@ const app = Vue.createApp({
         return rest;
       }),
       searchInput: '',
-      dropdownVisible: false
+      dropdownVisible: false,
+      isLive: true,
     }
   },
   computed: {
@@ -40,6 +41,12 @@ const app = Vue.createApp({
     }
   },
   methods: {
+    handleOutsideClick(event) {
+        if (!this.dropdownVisible || event.target.closest('#dropdownItems') || event.target.closest('#searchInput')) {
+            return;
+        }
+        this.dropdownVisible = false;
+    },
     filledStyle(value, max) {
           return {
             width: `${(value / max) * 100}%`,
@@ -136,6 +143,7 @@ const app = Vue.createApp({
     websocket.onerror = (error) => {
       console.error('WebSocket Error:', error);
     };
+    document.addEventListener('click', this.handleOutsideClick);
   }
 });
 
@@ -154,13 +162,13 @@ app.component('slider-input', {
     props: ['modelValue', 'label', 'min', 'max'],
     computed: {
         progress() {
-          let offset = (this.min === this.modelValue) ? 1 : 0;
-          return ((this.modelValue - this.min) / (this.max - this.min)) * (100 - offset) + offset;
+            let offset = (this.min === this.modelValue) ? 1 : 0;
+            return ((this.modelValue - this.min) / (this.max - this.min)) * (100 - offset) + offset;
         }
-      },      
+    },
     template: `
       <div class="slider-container">
-        <label>{{ label }}</label>
+        <div class="slider-label">{{ label }} {{ modelValue }}</div> <!-- Wrap the label in a div -->
         <div class="slider-wrapper">
           <div class="slider-track"></div>
           <div class="slider-filled" :style="{ width: progress + '%' }"></div>
@@ -168,7 +176,8 @@ app.component('slider-input', {
         </div>
       </div>
     `
-  });
+});
+
   
 
 app.mount('#app');

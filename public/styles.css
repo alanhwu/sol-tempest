@@ -5,10 +5,13 @@ body {
 
 .container {
     max-width: 1200px;
-    margin: 0 auto;
+    margin: 0 auto; /* center */
     background: #111111;
     padding: 20px;
     color: #ddd;
+    display: flex; 
+    justify-content: center; /* Horizontal centering */
+    align-items: center; /* Vertical centering */
 }
 
 .content-container {
@@ -38,6 +41,7 @@ body {
     pointer-events: none;
 }
 
+
 .block-info {
     margin-top: 25px;
     max-width: 330px;
@@ -54,6 +58,12 @@ body {
     border-radius: 8px; /* Rounded corners */
 }
 
+.control-panel-title {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+
 
 
 .block-info .search-container {
@@ -69,6 +79,8 @@ body {
     font-size: 16px;
     border-radius: 8px;
     border: 1px solid #ced4da;
+    background-color: #111; /* Same color as the unselected pill */
+    color: white;
 }
 
 .search-container #clearInput {
@@ -88,14 +100,13 @@ body {
 }
 
 #insights-description {
-    margin: 0 auto;
+    margin-top: -30px;
+    margin-bottom: 10px;
     font-size: 14px;
     text-align: center;
-    position: absolute;
-    top: 50px;
 }
 .insights-content {
-    margin-top: 20px; /* spacing */
+    margin-top: 12px; /* spacing */
 }
 
 a {
@@ -117,23 +128,24 @@ h1 {
 
 
 #dropdownItems {
-    position: absolute; 
-    top: 100%; 
+    position: absolute;
+    top: 100%;
     left: 0;
-    z-index: 100; 
-    display: block; 
+    z-index: 100;
+    display: block;
     width: 100%;
     border: 1px solid #ced4da;
     border-radius: 8px;
-    background-color: white;
-    color: black;
+    background-color: #111; /* Same color as the unselected pill */
+    color: white;
 }
-
 
 #dropdownItems .clickableItem {
     padding: 10px;
     cursor: pointer;
+    color: white;
 }
+
 
 #dropdownItems .dropdownCategory {
     padding: 5px;
@@ -282,4 +294,131 @@ h1 {
     width: calc(100% - 9px);
 }
 
+.slider-label {
+    text-align: center; 
+    margin-bottom: 5px; /*add space between the label and the slider*/
+}
 
+
+
+
+
+.pill-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 30px;
+    width: 70%; /* match the pill width */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.pill-selection {
+    display: flex;
+    border-radius: 15px; /* Smaller radius for less round corners */
+    overflow: hidden;
+    width: 100%; 
+    background-color: #888;
+}
+
+.pill-option {
+    color: #aaa; /* Dimmed color for inactive text */
+    padding: 5px 15px;
+    cursor: pointer;
+    flex: 1;
+    text-align: center;
+    background-color: #111;
+    font-size: 14px;
+    line-height: 1.2;
+}
+
+.pill-option.active {
+    color: white; /* active text */
+    background-color: #333;
+}
+
+
+.live-circle {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: red;
+    border-radius: 50%;
+    margin-left: 5px;
+    opacity: 0.5; /* Dimmed when not active */
+    vertical-align: middle;
+}
+
+.live-circle.blinking {
+    animation: blink 1s infinite;
+    opacity: 1; /* Normal when active */
+}
+
+/* Blinking effect for the red circle */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+
+
+
+
+
+/* Range Selection */
+
+.block-start-container {
+    margin-top: 20px;
+    width: 100%;
+    text-align: center;
+}
+
+.block-start-label {
+    display: block; /* make label a block-level element */
+}
+.block-start-label.dimmed {
+    color: #aaa; 
+}
+
+.block-start-label.active {
+    color: white;
+}
+
+.block-start-input {
+    margin-top: 10px;
+    width: 100px; 
+    padding: 5px;
+    height: 18px;
+    font-size: 16px;
+    border-radius: 15px; /* Match pill's border-radius */
+    border: 1px solid #ced4da;
+    background-color: #111; 
+    color: white; 
+    margin-right: 10px; /* Space between input and button */
+}
+
+.block-start-input.dimmed {
+    cursor: not-allowed;
+    opacity: 0.5; 
+ } 
+
+.block-start-button {
+    margin-top: 10px;
+    height: 30px; 
+    padding: 5px 10px; 
+    font-size: 14px; 
+    border-radius: 15px; /* Matching pill's border-radius */
+    border: 1px solid #ced4da;
+    background-color: #111;
+    color: white; 
+    cursor: pointer;
+    transition: 0.3s; /* transition on hover */
+}
+
+.block-start-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5; 
+}
+
+.block-start-button:hover {
+    background-color: #333;
+}
