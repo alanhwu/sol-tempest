@@ -1,12 +1,21 @@
 import express from 'express';
 import WebSocket, { Server as WebSocketServer } from 'ws';
 import http from 'http';
+import https from 'https';
+import fs from 'fs';
 import { fetchBlockData } from './solana';
 import * as solana from '@solana/web3.js';
 import { processBlock } from './blockProcessor';
 
+// Read the key and certificate files
+const options = {
+    key: fs.readFileSync('./key.pem'),
+    cert: fs.readFileSync('./cert.pem')
+  };  
 const app = express();
-const server = http.createServer(app);
+//const server = http.createServer(app);
+// Create HTTPS server
+const server = https.createServer(options, app);
 const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 3000;
 const CONCURRENCY_LEVEL = 10; // Number of simultaneous requests to the API
