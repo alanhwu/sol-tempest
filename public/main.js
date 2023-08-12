@@ -3,7 +3,7 @@ import { reformatString } from './utils.js';
 import { config } from './config.js';
 
 
-const websocket = new WebSocket('ws://localhost:3000');
+const websocket = new WebSocket('ws://34.145.86.224:3000');
 const configItems = config.topItems;
 
 const app = Vue.createApp({
@@ -16,15 +16,15 @@ const app = Vue.createApp({
       slot: null,
       blockPayload: null,
       insights: null,
-      selectedItem: null,
-      targetAddress: null,
-      targetType: null,
+      selectedItem: "USDC",
+      targetAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      targetType: "token",
       started: false,
       topItems: config.topItems.map(item => {
         const { address, ...rest } = item;
         return rest;
       }),
-      searchInput: '',
+      searchInput: 'USDC',
       dropdownVisible: false,
       isLive: true,
       clearQueue: false,

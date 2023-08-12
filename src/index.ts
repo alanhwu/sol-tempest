@@ -27,6 +27,10 @@ let slot = -1;
 
 wss.on('connection', (ws) => {
     console.log('Client connected');
+    (async function getInitialSlot() {
+        slot = await solanaConnection.getSlot() - 70;
+        console.log(`the current slot is ${slot}`);
+    })();
     ws.on('error', (error) => {
         console.error('Client WebSocket Error:', error);
     });
