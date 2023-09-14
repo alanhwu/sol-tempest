@@ -3,7 +3,7 @@ import { reformatString } from './utils.js';
 import { config } from './config.js';
 
 
-const websocket = new WebSocket('wss://34.145.86.224:3000');
+const websocket = new WebSocket('wss://35.197.26.21:3000');
 const configItems = config.topItems;
 
 const app = Vue.createApp({
